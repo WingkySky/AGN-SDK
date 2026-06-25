@@ -25,11 +25,14 @@ from agn.core.errors import (
     UnsupportedCapabilityError,
 )
 from agn.core.utils import current_timestamp, generate_id
-from agn.models.audio import (
-    SpeechResult,
-    TranscriptionResult,
+from agn.models.chat import (
+    ChatChoice,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionDelta,
+    ChatMessage,
+    ChatUsage,
 )
-from agn.models.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionDelta, ChatMessage
 from agn.models.common import ModelInfo, ProviderConfig
 
 logger = logging.getLogger(__name__)
@@ -154,7 +157,9 @@ class SiliconFlowAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
             body["temperature"] = temperature
 
         try:
-            async with client.stream("POST", "/chat/completions", json=body) as response:
+            async with client.stream(
+                "POST", "/chat/completions", json=body
+            ) as response:
                 self._handle_error(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -327,22 +332,35 @@ class SiliconFlowAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
 
         raise APIError(message=error_msg, status_code=response.status_code)
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
-        choices = data.get("choices", [])
-        if not choices:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
+        choices_data = data.get("choices", [])
+        if not choices_data:
             raise APIError(message="No completion choices in response")
 
-        choice = choices[0]
-        message_data = choice.get("message", {})
+        chat_choices: list[ChatChoice] = []
+        for idx, choice in enumerate(choices_data):
+            message_data = choice.get("message", {})
+            chat_message = ChatMessage(
+                role=message_data.get("role", "assistant"),
+                content=message_data.get("content", ""),
+            )
+            chat_choices.append(
+                ChatChoice(
+                    index=choice.get("index", idx),
+                    message=chat_message,
+                    finish_reason=choice.get("finish_reason"),
+                )
+            )
+
+        usage_data = data.get("usage")
+        usage = ChatUsage(**usage_data) if usage_data else None
 
         return ChatCompletion(
             id=data.get("id", generate_id("chatcmpl")),
             created=data.get("created", current_timestamp()),
             model=data.get("model", model),
-            content=message_data.get("content", ""),
-            role=message_data.get("role", "assistant"),
-            finish_reason=choice.get("finish_reason"),
-            usage=data.get("usage", {}),
+            choices=chat_choices,
+            usage=usage,
         )
 
     def _parse_chunk(self, data_str: str, model: str) -> ChatCompletionChunk | None:
@@ -486,7 +504,9 @@ class TogetherAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
             body["temperature"] = temperature
 
         try:
-            async with client.stream("POST", "/chat/completions", json=body) as response:
+            async with client.stream(
+                "POST", "/chat/completions", json=body
+            ) as response:
                 self._handle_error(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -667,22 +687,35 @@ class TogetherAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
 
         raise APIError(message=error_msg, status_code=response.status_code)
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
-        choices = data.get("choices", [])
-        if not choices:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
+        choices_data = data.get("choices", [])
+        if not choices_data:
             raise APIError(message="No completion choices in response")
 
-        choice = choices[0]
-        message_data = choice.get("message", {})
+        chat_choices: list[ChatChoice] = []
+        for idx, choice in enumerate(choices_data):
+            message_data = choice.get("message", {})
+            chat_message = ChatMessage(
+                role=message_data.get("role", "assistant"),
+                content=message_data.get("content", ""),
+            )
+            chat_choices.append(
+                ChatChoice(
+                    index=choice.get("index", idx),
+                    message=chat_message,
+                    finish_reason=choice.get("finish_reason"),
+                )
+            )
+
+        usage_data = data.get("usage")
+        usage = ChatUsage(**usage_data) if usage_data else None
 
         return ChatCompletion(
             id=data.get("id", generate_id("chatcmpl")),
             created=data.get("created", current_timestamp()),
             model=data.get("model", model),
-            content=message_data.get("content", ""),
-            role=message_data.get("role", "assistant"),
-            finish_reason=choice.get("finish_reason"),
-            usage=data.get("usage", {}),
+            choices=chat_choices,
+            usage=usage,
         )
 
     def _parse_chunk(self, data_str: str, model: str) -> ChatCompletionChunk | None:
@@ -827,7 +860,9 @@ class FireworksAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
             body["temperature"] = temperature
 
         try:
-            async with client.stream("POST", "/chat/completions", json=body) as response:
+            async with client.stream(
+                "POST", "/chat/completions", json=body
+            ) as response:
                 self._handle_error(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -992,22 +1027,35 @@ class FireworksAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
 
         raise APIError(message=error_msg, status_code=response.status_code)
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
-        choices = data.get("choices", [])
-        if not choices:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
+        choices_data = data.get("choices", [])
+        if not choices_data:
             raise APIError(message="No completion choices in response")
 
-        choice = choices[0]
-        message_data = choice.get("message", {})
+        chat_choices: list[ChatChoice] = []
+        for idx, choice in enumerate(choices_data):
+            message_data = choice.get("message", {})
+            chat_message = ChatMessage(
+                role=message_data.get("role", "assistant"),
+                content=message_data.get("content", ""),
+            )
+            chat_choices.append(
+                ChatChoice(
+                    index=choice.get("index", idx),
+                    message=chat_message,
+                    finish_reason=choice.get("finish_reason"),
+                )
+            )
+
+        usage_data = data.get("usage")
+        usage = ChatUsage(**usage_data) if usage_data else None
 
         return ChatCompletion(
             id=data.get("id", generate_id("chatcmpl")),
             created=data.get("created", current_timestamp()),
             model=data.get("model", model),
-            content=message_data.get("content", ""),
-            role=message_data.get("role", "assistant"),
-            finish_reason=choice.get("finish_reason"),
-            usage=data.get("usage", {}),
+            choices=chat_choices,
+            usage=usage,
         )
 
     def _parse_chunk(self, data_str: str, model: str) -> ChatCompletionChunk | None:
@@ -1112,9 +1160,6 @@ class CloudflareAIAdapter(BaseAdapter):
     ) -> ChatCompletion:
         client = self._get_client()
 
-        # 转换消息格式
-        prompt = self._convert_to_prompt(messages)
-
         body: dict[str, Any] = {
             "messages": [
                 msg.model_dump() if hasattr(msg, "model_dump") else msg
@@ -1160,7 +1205,9 @@ class CloudflareAIAdapter(BaseAdapter):
         cf_model = self._format_model(model)
 
         try:
-            async with client.stream("POST", f"/v1/run/{cf_model}", json=body) as response:
+            async with client.stream(
+                "POST", f"/v1/run/{cf_model}", json=body
+            ) as response:
                 self._handle_error(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
@@ -1173,26 +1220,6 @@ class CloudflareAIAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"Cloudflare AI stream chat failed: {e}")
             raise
-
-    def _convert_to_prompt(self, messages: list) -> str:
-        """将消息列表转换为简单提示"""
-        parts = []
-        for msg in messages:
-            if isinstance(msg, dict):
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-            else:
-                role = msg.role
-                content = msg.content
-
-            if role == "system":
-                parts.append(f"System: {content}")
-            elif role == "user":
-                parts.append(f"User: {content}")
-            else:
-                parts.append(f"Assistant: {content}")
-
-        return "\n".join(parts)
 
     async def image_generate(
         self,
@@ -1337,19 +1364,29 @@ class CloudflareAIAdapter(BaseAdapter):
 
         raise APIError(message=error_msg, status_code=response.status_code)
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
         # Cloudflare 响应格式: { "result": { "response": "..." } }
         result = data.get("result", {})
-        content = result.get("response", "") if isinstance(result, dict) else str(result)
+        content = (
+            result.get("response", "") if isinstance(result, dict) else str(result)
+        )
+
+        chat_message = ChatMessage(role="assistant", content=content)
+        chat_choice = ChatChoice(
+            index=0,
+            message=chat_message,
+            finish_reason="stop",
+        )
+
+        usage_data = data.get("usage")
+        usage = ChatUsage(**usage_data) if usage_data else None
 
         return ChatCompletion(
             id=data.get("id", generate_id("chatcmpl")),
             created=data.get("timestamp", current_timestamp()),
             model=model,
-            content=content,
-            role="assistant",
-            finish_reason="stop",
-            usage=data.get("usage", {}),
+            choices=[chat_choice],
+            usage=usage,
         )
 
     def _parse_chunk(self, data_str: str, model: str) -> ChatCompletionChunk | None:

@@ -10,7 +10,6 @@ from typing import Any
 import httpx
 
 from agn.core.errors import (
-    APIError,
     AuthenticationError,
     NetworkError,
     RateLimitError,

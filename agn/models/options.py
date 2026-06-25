@@ -16,7 +16,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 # ==================== 通用枚举 ====================
 
 
@@ -85,7 +84,9 @@ class FunctionParameter(BaseModel):
     type: str = Field(..., description="参数类型：string/number/boolean/object/array")
     description: str | None = Field(None, description="参数描述")
     enum: list[Any] | None = Field(None, description="枚举值")
-    properties: dict[str, "FunctionParameter"] | None = Field(None, description="对象属性")
+    properties: dict[str, "FunctionParameter"] | None = Field(
+        None, description="对象属性"
+    )
     required: list[str] | None = Field(None, description="必填参数列表")
     items: "FunctionParameter | None" = Field(None, description="数组元素类型")
 
@@ -97,7 +98,9 @@ class FunctionDefinition(BaseModel):
 
     name: str = Field(..., description="函数名称")
     description: str | None = Field(None, description="函数描述")
-    parameters: dict[str, Any] | None = Field(None, description="函数参数（JSON Schema）")
+    parameters: dict[str, Any] | None = Field(
+        None, description="函数参数（JSON Schema）"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -109,7 +112,9 @@ class ToolDefinition(BaseModel):
         default="function",
         description="工具类型",
     )
-    function: FunctionDefinition | None = Field(None, description="函数定义（type=function 时必填）")
+    function: FunctionDefinition | None = Field(
+        None, description="函数定义（type=function 时必填）"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -144,20 +149,30 @@ class ChatOptions(BaseModel):
     """
 
     # 基础生成参数
-    temperature: float | None = Field(None, ge=0.0, le=2.0, description="温度系数（0-2，越高越随机）")
+    temperature: float | None = Field(
+        None, ge=0.0, le=2.0, description="温度系数（0-2，越高越随机）"
+    )
     top_p: float | None = Field(None, ge=0.0, le=1.0, description="核采样（0-1）")
     top_k: int | None = Field(None, ge=1, description="Top-K 采样")
     max_tokens: int | None = Field(None, ge=1, description="最大生成 token 数")
     stop: str | list[str] | None = Field(None, description="停止词")
     n: int = Field(1, ge=1, le=16, description="生成回复数量")
-    presence_penalty: float | None = Field(None, ge=-2.0, le=2.0, description="存在惩罚（-2到2）")
-    frequency_penalty: float | None = Field(None, ge=-2.0, le=2.0, description="频率惩罚（-2到2）")
-    repetition_penalty: float | None = Field(None, ge=0.0, description="重复惩罚（部分模型用）")
+    presence_penalty: float | None = Field(
+        None, ge=-2.0, le=2.0, description="存在惩罚（-2到2）"
+    )
+    frequency_penalty: float | None = Field(
+        None, ge=-2.0, le=2.0, description="频率惩罚（-2到2）"
+    )
+    repetition_penalty: float | None = Field(
+        None, ge=0.0, description="重复惩罚（部分模型用）"
+    )
     min_p: float | None = Field(None, ge=0.0, le=1.0, description="Min-P 采样")
     seed: int | None = Field(None, description="随机种子（可复现）")
 
     # 响应格式
-    response_format: ResponseFormat | dict[str, Any] | None = Field(None, description="响应格式")
+    response_format: ResponseFormat | dict[str, Any] | None = Field(
+        None, description="响应格式"
+    )
     json_schema: dict[str, Any] | None = Field(None, description="JSON Schema 约束")
 
     # 工具/函数调用
@@ -172,16 +187,24 @@ class ChatOptions(BaseModel):
 
     # 联网搜索
     web_search: bool = Field(False, description="是否启用联网搜索")
-    search_recency_filter: str | None = Field(None, description="搜索时间过滤：day/week/month/year")
+    search_recency_filter: str | None = Field(
+        None, description="搜索时间过滤：day/week/month/year"
+    )
     search_domain_filter: list[str] | None = Field(None, description="搜索域名白名单")
 
     # 多模态
-    images: list[str] | None = Field(None, description="图片 URL/data URI 列表（视觉理解）")
-    detail: Literal["low", "high", "auto"] | None = Field("auto", description="图片细节级别")
+    images: list[str] | None = Field(
+        None, description="图片 URL/data URI 列表（视觉理解）"
+    )
+    detail: Literal["low", "high", "auto"] | None = Field(
+        "auto", description="图片细节级别"
+    )
 
     # 流式输出
     stream: bool = Field(False, description="是否流式输出")
-    stream_options: dict[str, Any] | None = Field(None, description="流式选项（如 include_usage）")
+    stream_options: dict[str, Any] | None = Field(
+        None, description="流式选项（如 include_usage）"
+    )
 
     # 用户标识
     user: str | None = Field(None, description="用户标识（用于风控/限流）")
@@ -220,14 +243,18 @@ class ImageOptions(BaseModel):
 
     # 基础参数
     n: int = Field(1, ge=1, le=10, description="生成图片数量")
-    size: str | None = Field(None, description="尺寸（如 1024x1024），或使用 width/height")
+    size: str | None = Field(
+        None, description="尺寸（如 1024x1024），或使用 width/height"
+    )
     width: int | None = Field(None, ge=64, le=4096, description="宽度（像素）")
     height: int | None = Field(None, ge=64, le=4096, description="高度（像素）")
     aspect_ratio: AspectRatio | str | None = Field(None, description="画面比例")
 
     # 风格和质量
     style: ImageStyle | str | None = Field(None, description="图像风格")
-    quality: Literal["standard", "hd", "ultra"] | None = Field(None, description="生成质量")
+    quality: Literal["standard", "hd", "ultra"] | None = Field(
+        None, description="生成质量"
+    )
 
     # 负面提示词
     negative_prompt: str | None = Field(None, description="负面提示词")
@@ -236,24 +263,36 @@ class ImageOptions(BaseModel):
     # 高级参数
     seed: int | None = Field(None, description="随机种子")
     steps: int | None = Field(None, ge=1, le=100, description="推理步数")
-    cfg_scale: float | None = Field(None, ge=1.0, le=20.0, description="CFG Scale（提示词相关性）")
+    cfg_scale: float | None = Field(
+        None, ge=1.0, le=20.0, description="CFG Scale（提示词相关性）"
+    )
     sampler: str | None = Field(None, description="采样器名称")
     scheduler: str | None = Field(None, description="调度器")
 
     # 输出格式
     response_format: Literal["url", "b64_json"] = Field("url", description="返回格式")
-    output_format: Literal["png", "jpeg", "webp"] | None = Field(None, description="输出图片格式")
+    output_format: Literal["png", "jpeg", "webp"] | None = Field(
+        None, description="输出图片格式"
+    )
 
     # 参考图
-    reference_images: list[str] | None = Field(None, description="参考图 URL/data URI（图生图/IP-Adapter）")
-    reference_strength: float | None = Field(None, ge=0.0, le=1.0, description="参考图强度")
+    reference_images: list[str] | None = Field(
+        None, description="参考图 URL/data URI（图生图/IP-Adapter）"
+    )
+    reference_strength: float | None = Field(
+        None, ge=0.0, le=1.0, description="参考图强度"
+    )
 
     # 图像编辑
     mask: str | None = Field(None, description="遮罩图片 data URI（局部重绘）")
-    edit_mode: Literal["inpaint", "outpaint", "variation"] | None = Field(None, description="编辑模式")
+    edit_mode: Literal["inpaint", "outpaint", "variation"] | None = Field(
+        None, description="编辑模式"
+    )
 
     # 厂商特有参数
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="厂商特有参数透传")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="厂商特有参数透传"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -285,13 +324,17 @@ class VideoOptions(BaseModel):
     height: int | None = Field(None, description="高度")
 
     # 模式
-    mode: Literal["text2video", "image2video", "video2video", "keyframes"] | str = Field(
-        "text2video", description="生成模式"
+    mode: Literal["text2video", "image2video", "video2video", "keyframes"] | str = (
+        Field("text2video", description="生成模式")
     )
 
     # 参考素材
-    reference_images: list[str] | None = Field(None, description="参考图片 URL（图生视频）")
-    reference_videos: list[str] | None = Field(None, description="参考视频 URL（视频生视频）")
+    reference_images: list[str] | None = Field(
+        None, description="参考图片 URL（图生视频）"
+    )
+    reference_videos: list[str] | None = Field(
+        None, description="参考视频 URL（视频生视频）"
+    )
     keyframes: list[dict[str, Any]] | None = Field(None, description="关键帧列表")
     first_frame: str | None = Field(None, description="首帧图片")
     last_frame: str | None = Field(None, description="尾帧图片")
@@ -314,7 +357,9 @@ class VideoOptions(BaseModel):
     watermark: bool | None = Field(None, description="是否添加水印")
 
     # 厂商特有参数
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="厂商特有参数透传")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="厂商特有参数透传"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -337,12 +382,18 @@ class EmbedOptions(BaseModel):
     统一文本嵌入请求选项
     """
 
-    model: str | None = Field(None, description="嵌入模型名称（可选，使用 Provider 默认）")
+    model: str | None = Field(
+        None, description="嵌入模型名称（可选，使用 Provider 默认）"
+    )
     dimensions: int | None = Field(None, ge=1, description="输出向量维度")
-    encoding_format: Literal["float", "base64"] | None = Field(None, description="编码格式")
+    encoding_format: Literal["float", "base64"] | None = Field(
+        None, description="编码格式"
+    )
     user: str | None = Field(None, description="用户标识")
 
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="厂商特有参数透传")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="厂商特有参数透传"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -384,10 +435,14 @@ class TranscribeOptions(BaseModel):
     """
 
     # 基础参数
-    file: str | bytes | None = Field(None, description="音频文件（文件路径、URL、base64 或二进制数据）")
+    file: str | bytes | None = Field(
+        None, description="音频文件（文件路径、URL、base64 或二进制数据）"
+    )
     model: str | None = Field(None, description="模型名称")
     language: str | None = Field(None, description="语言代码（如 'zh'、'en'）")
-    prompt: str | None = Field(None, description="提示词（改善专有名词识别、纠正错别字）")
+    prompt: str | None = Field(
+        None, description="提示词（改善专有名词识别、纠正错别字）"
+    )
 
     # 响应格式
     response_format: Literal["json", "text", "srt", "vtt", "verbose_json"] = Field(
@@ -395,7 +450,9 @@ class TranscribeOptions(BaseModel):
     )
 
     # 高级参数
-    temperature: float | None = Field(None, ge=0.0, le=1.0, description="温度系数（0-1）")
+    temperature: float | None = Field(
+        None, ge=0.0, le=1.0, description="温度系数（0-1）"
+    )
     timestamp_granularities: list[Literal["word", "segment"]] | None = Field(
         None, description="时间戳精度"
     )
@@ -407,7 +464,9 @@ class TranscribeOptions(BaseModel):
     stream: bool = Field(False, description="是否流式输出（仅部分模型支持）")
 
     # 厂商特有参数
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="厂商特有参数透传")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="厂商特有参数透传"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -441,16 +500,26 @@ class SpeechOptions(BaseModel):
     )
 
     # 音频参数
-    speed: float | None = Field(None, ge=0.25, le=4.0, description="语速（0.25-4.0，默认 1.0）")
-    volume: float | None = Field(None, ge=0.0, le=2.0, description="音量（0-2，默认 1.0）")
-    pitch: float | None = Field(None, ge=-1.0, le=1.0, description="音调（-1 到 1，默认 0）")
+    speed: float | None = Field(
+        None, ge=0.25, le=4.0, description="语速（0.25-4.0，默认 1.0）"
+    )
+    volume: float | None = Field(
+        None, ge=0.0, le=2.0, description="音量（0-2，默认 1.0）"
+    )
+    pitch: float | None = Field(
+        None, ge=-1.0, le=1.0, description="音调（-1 到 1，默认 0）"
+    )
 
     # 情感/风格（部分厂商支持）
-    emotion: str | None = Field(None, description="情感风格（如 'happy'、'sad'、'neutral'）")
+    emotion: str | None = Field(
+        None, description="情感风格（如 'happy'、'sad'、'neutral'）"
+    )
     style: str | None = Field(None, description="说话风格")
 
     # 厂商特有参数
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="厂商特有参数透传")
+    extra_params: dict[str, Any] = Field(
+        default_factory=dict, description="厂商特有参数透传"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -481,7 +550,7 @@ class ParameterMapping:
 
     def __init__(
         self,
-        rename_map: dict[str, str] | None = None,
+        rename_map: dict[str, str | None] | None = None,
         value_map: dict[str, dict[Any, Any]] | None = None,
         extra_headers: dict[str, str] | None = None,
         remove_when_none: bool = True,
@@ -501,6 +570,9 @@ class ParameterMapping:
 
             # 键名重命名
             target_key = self.rename_map.get(key, key)
+            if target_key is None:
+                # None 表示移除该参数
+                continue
 
             # 值映射
             if key in self.value_map and value in self.value_map[key]:
@@ -554,9 +626,15 @@ ANTHROPIC_MAPPING = ParameterMapping(
             False: {"thinking": {"type": "disabled"}},
         },
         "reasoning_effort": {
-            ReasoningEffort.LOW: {"thinking": {"type": "enabled", "budget_tokens": 1024}},
-            ReasoningEffort.MEDIUM: {"thinking": {"type": "enabled", "budget_tokens": 4096}},
-            ReasoningEffort.HIGH: {"thinking": {"type": "enabled", "budget_tokens": 16384}},
+            ReasoningEffort.LOW: {
+                "thinking": {"type": "enabled", "budget_tokens": 1024}
+            },
+            ReasoningEffort.MEDIUM: {
+                "thinking": {"type": "enabled", "budget_tokens": 4096}
+            },
+            ReasoningEffort.HIGH: {
+                "thinking": {"type": "enabled", "budget_tokens": 16384}
+            },
         },
     },
 )

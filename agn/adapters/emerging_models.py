@@ -27,9 +27,15 @@ from agn.core.errors import (
     UnsupportedCapabilityError,
 )
 from agn.core.utils import current_timestamp, generate_id
-from agn.models.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionDelta, ChatMessage, ChatChoice
+from agn.models.chat import (
+    ChatChoice,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionDelta,
+    ChatMessage,
+)
 from agn.models.common import ModelInfo, ProviderConfig
-from agn.models.image import ImageGenerationResult, ImageData
+from agn.models.image import ImageData, ImageGenerationResult
 from agn.models.video import VideoStatus, VideoTask
 
 logger = logging.getLogger(__name__)
@@ -402,9 +408,14 @@ class IdeogramAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid Ideogram API key")
         if response.status_code == 429:
-            raise RateLimitError(message="Ideogram rate limit exceeded or credits exhausted")
+            raise RateLimitError(
+                message="Ideogram rate limit exceeded or credits exhausted"
+            )
         if response.status_code == 402:
-            raise APIError(message="Ideogram payment required or credits exhausted", status_code=402)
+            raise APIError(
+                message="Ideogram payment required or credits exhausted",
+                status_code=402,
+            )
 
         try:
             error_data = response.json()
@@ -676,8 +687,13 @@ class LumaAdapter(BaseAdapter):
         updated_ts = data.get("updated_at") or current_timestamp()
         if isinstance(created_ts, str):
             from datetime import datetime
+
             try:
-                created_ts = int(datetime.fromisoformat(created_ts.replace("Z", "+00:00")).timestamp())
+                created_ts = int(
+                    datetime.fromisoformat(
+                        created_ts.replace("Z", "+00:00")
+                    ).timestamp()
+                )
             except Exception:
                 created_ts = None
 
@@ -764,9 +780,13 @@ class LumaAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid Luma API key")
         if response.status_code == 429:
-            raise RateLimitError(message="Luma rate limit exceeded or credits exhausted")
+            raise RateLimitError(
+                message="Luma rate limit exceeded or credits exhausted"
+            )
         if response.status_code == 402:
-            raise APIError(message="Luma credits exhausted or payment required", status_code=402)
+            raise APIError(
+                message="Luma credits exhausted or payment required", status_code=402
+            )
 
         try:
             error_data = response.json()
@@ -936,7 +956,9 @@ class LlamaAdapter(BaseAdapter):
         body["stream"] = True
 
         try:
-            async with client.stream("POST", "/chat/completions", json=body) as response:
+            async with client.stream(
+                "POST", "/chat/completions", json=body
+            ) as response:
                 self._handle_error(response)
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):

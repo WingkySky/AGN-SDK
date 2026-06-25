@@ -4,7 +4,7 @@ AGN-SDK 通用数据模型
 定义 Provider 配置、模型信息等通用数据结构。
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +16,13 @@ class ProviderConfig(BaseModel):
     用于配置单个 AI 模型提供商的连接参数。
     """
 
-    provider_type: str = Field(..., description="Provider 类型标识，如 'agnes'、'openai'")
+    provider_type: str = Field(
+        ..., description="Provider 类型标识，如 'agnes'、'openai'"
+    )
     api_key: str = Field(..., description="API Key")
-    base_url: str | None = Field(None, description="API Base URL（可选，部分 Provider 有默认值）")
+    base_url: str | None = Field(
+        None, description="API Base URL（可选，部分 Provider 有默认值）"
+    )
     poll_url: str | None = Field(None, description="轮询 URL（视频生成任务状态用）")
     timeout: int = Field(300, ge=1, le=600, description="请求超时时间（秒）")
     max_retries: int = Field(3, ge=0, le=10, description="最大重试次数")
@@ -29,6 +33,11 @@ class ProviderConfig(BaseModel):
     resource_name: str | None = Field(None, description="Azure 资源名称")
     deployment_id: str | None = Field(None, description="Azure 部署 ID")
     api_version: str | None = Field(None, description="API 版本")
+
+    # 额外配置（用于厂商特定配置）
+    extra: dict[str, Any] = Field(
+        default_factory=dict, description="额外配置项（厂商特定配置）"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -42,7 +51,9 @@ class ModelInfo(BaseModel):
 
     id: str = Field(..., description="模型标识符")
     name: str = Field(..., description="模型显示名称")
-    type: Literal["chat", "image", "video", "audio"] = Field(..., description="模型类型")
+    type: Literal["chat", "image", "video", "audio"] = Field(
+        ..., description="模型类型"
+    )
     provider: str = Field(..., description="提供商名称")
     capabilities: list[str] = Field(
         default_factory=list,

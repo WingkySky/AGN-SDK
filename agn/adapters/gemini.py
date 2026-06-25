@@ -26,9 +26,16 @@ from agn.core.errors import (
     UnsupportedCapabilityError,
 )
 from agn.core.utils import current_timestamp, generate_id
-from agn.models.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionDelta, ChatMessage
+from agn.models.chat import (
+    ChatChoice,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionDelta,
+    ChatMessage,
+)
 from agn.models.common import ModelInfo, ProviderConfig
 from agn.models.image import ImageGenerationResult
+from agn.models.options import EmbeddingResult
 from agn.models.video import VideoStatus, VideoTask
 
 logger = logging.getLogger(__name__)
@@ -47,7 +54,7 @@ class GeminiAdapter(BaseAdapter):
 
     provider_type = "gemini"
     provider_name = "Google Gemini"
-    supported_capabilities = ["chat", "vision"]
+    supported_capabilities = ["chat", "vision", "embedding"]
 
     def __init__(self, config: ProviderConfig) -> None:
         """
@@ -87,8 +94,8 @@ class GeminiAdapter(BaseAdapter):
     # ==================== 消息格式转换 ====================
 
     def _convert_messages(
-        self, messages: list[ChatMessage] | list[dict]
-    ) -> tuple[list[dict], str | None]:
+        self, messages: list[ChatMessage] | list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], str | None]:
         """
         将统一消息格式转换为 Gemini 格式
 
@@ -103,7 +110,7 @@ class GeminiAdapter(BaseAdapter):
         Returns:
             (gemini_contents, system_instruction)
         """
-        contents: list[dict] = []
+        contents: list[dict[str, Any]] = []
         system_instruction: str | None = None
 
         for msg in messages:
@@ -115,7 +122,9 @@ class GeminiAdapter(BaseAdapter):
                 content = msg.content
 
             if role == "system":
-                system_instruction = content if isinstance(content, str) else str(content)
+                system_instruction = (
+                    content if isinstance(content, str) else str(content)
+                )
             elif role in ("user", "assistant"):
                 # Gemini 使用 "model" 作为 assistant 的 role
                 gemini_role = "user" if role == "user" else "model"
@@ -133,26 +142,30 @@ class GeminiAdapter(BaseAdapter):
                                     media_type, data = url.split(";", 1)
                                     media_type = media_type.replace("data:", "")
                                     encoding, data = data.split(",", 1)
-                                    parts.append({
-                                        "inline_data": {
-                                            "mime_type": media_type,
-                                            "data": data,
-                                        },
-                                    })
+                                    parts.append(
+                                        {
+                                            "inline_data": {
+                                                "mime_type": media_type,
+                                                "data": data,
+                                            },
+                                        }
+                                    )
                             else:
                                 parts.append({"text": str(block)})
                         else:
                             parts.append({"text": str(block)})
                     contents.append({"role": gemini_role, "parts": parts})
                 else:
-                    contents.append({
-                        "role": gemini_role,
-                        "parts": [{"text": str(content)}],
-                    })
+                    contents.append(
+                        {
+                            "role": gemini_role,
+                            "parts": [{"text": str(content)}],
+                        }
+                    )
 
         return contents, system_instruction
 
-    def _convert_generation_config(self, kwargs: dict) -> dict:
+    def _convert_generation_config(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """
         转换生成配置参数
 
@@ -210,9 +223,7 @@ class GeminiAdapter(BaseAdapter):
         body: dict[str, Any] = {"contents": contents}
 
         if system_instruction:
-            body["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
+            body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
         if generation_config:
             body["generationConfig"] = generation_config
 
@@ -257,16 +268,16 @@ class GeminiAdapter(BaseAdapter):
         body: dict[str, Any] = {"contents": contents}
 
         if system_instruction:
-            body["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
+            body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
         if generation_config:
             body["generationConfig"] = generation_config
 
         try:
             async with client.stream(
-                "POST", f"/models/{model}:streamGenerateContent", json=body,
-                params={"alt": "sse"}
+                "POST",
+                f"/models/{model}:streamGenerateContent",
+                json=body,
+                params={"alt": "sse"},
             ) as response:
                 self._handle_gemini_error(response)
                 buffer = ""
@@ -283,6 +294,110 @@ class GeminiAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"Gemini stream chat failed: {e}")
             raise
+
+    # ==================== 文本嵌入 ====================
+
+    async def embed(
+        self,
+        model: str,
+        input: str | list[str],
+        **kwargs: Any,
+    ) -> EmbeddingResult:
+        """
+        文本嵌入
+
+        Args:
+            model: 嵌入模型名称（如 text-embedding-004）
+            input: 输入文本或文本列表
+            **kwargs: 其他参数
+                - output_dimensionality: 输出维度
+
+        Returns:
+            嵌入结果
+        """
+        client = self._get_client()
+
+        embed_model = model or "text-embedding-004"
+
+        if isinstance(input, str):
+            texts = [input]
+        else:
+            texts = input
+
+        if len(texts) == 1:
+            body: dict[str, Any] = {
+                "model": f"models/{embed_model}",
+                "content": {"parts": [{"text": texts[0]}]},
+            }
+
+            if output_dimensionality := kwargs.get("output_dimensionality"):
+                body["outputDimensionality"] = output_dimensionality
+
+            logger.debug(f"Sending embedding request to Gemini: model={embed_model}")
+
+            try:
+                response = await client.post(
+                    f"/models/{embed_model}:embedContent", json=body
+                )
+            except Exception as e:
+                logger.error(f"Gemini embedding request failed: {e}")
+                raise
+
+            self._handle_gemini_error(response)
+            data = response.json()
+
+            embedding_values = data.get("embedding", {}).get("values", [])
+
+            return EmbeddingResult(
+                object="list",
+                data=[
+                    {
+                        "object": "embedding",
+                        "index": 0,
+                        "embedding": embedding_values,
+                    }
+                ],
+                model=embed_model,
+                usage=None,
+            )
+        else:
+            requests = []
+            for text in texts:
+                req = {"model": f"models/{embed_model}", "content": {"parts": [{"text": text}]}}
+                if output_dimensionality := kwargs.get("output_dimensionality"):
+                    req["outputDimensionality"] = output_dimensionality
+                requests.append(req)
+
+            body = {"requests": requests}
+
+            try:
+                response = await client.post(
+                    f"/models/{embed_model}:batchEmbedContents", json=body
+                )
+            except Exception as e:
+                logger.error(f"Gemini batch embedding request failed: {e}")
+                raise
+
+            self._handle_gemini_error(response)
+            data = response.json()
+
+            embeddings = data.get("embeddings", [])
+            result_data = []
+            for i, emb in enumerate(embeddings):
+                result_data.append(
+                    {
+                        "object": "embedding",
+                        "index": i,
+                        "embedding": emb.get("values", []),
+                    }
+                )
+
+            return EmbeddingResult(
+                object="list",
+                data=result_data,
+                model=embed_model,
+                usage=None,
+            )
 
     # ==================== 图像生成（不支持）====================
 
@@ -380,7 +495,7 @@ class GeminiAdapter(BaseAdapter):
 
     # ==================== 响应解析 ====================
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
         """
         解析对话响应
 
@@ -423,11 +538,16 @@ class GeminiAdapter(BaseAdapter):
         usage = data.get("usageMetadata", {})
 
         return ChatCompletion(
-            id=data.get("id", ""),
+            id=generate_id("chatcmpl"),
+            created=current_timestamp(),
             model=model,
-            content=content,
-            role="assistant",
-            finish_reason=finish_reason,
+            choices=[
+                ChatChoice(
+                    index=0,
+                    message=ChatMessage(role="assistant", content=content),
+                    finish_reason=finish_reason,
+                )
+            ],
             usage={
                 "prompt_tokens": usage.get("promptTokenCount", 0),
                 "completion_tokens": usage.get("candidatesTokenCount", 0),
@@ -435,7 +555,9 @@ class GeminiAdapter(BaseAdapter):
             },
         )
 
-    def _parse_stream_chunk(self, data_str: str, model: str) -> list[ChatCompletionChunk]:
+    def _parse_stream_chunk(
+        self, data_str: str, model: str
+    ) -> list[ChatCompletionChunk]:
         """
         解析流式响应块
 
@@ -463,18 +585,20 @@ class GeminiAdapter(BaseAdapter):
 
             if text:
                 delta_message = ChatMessage(role="assistant", content=text)
-                chunks.append(ChatCompletionChunk(
-                    id=chunk_id,
-                    created=created,
-                    model=model,
-                    choices=[
-                        ChatCompletionDelta(
-                            index=0,
-                            delta=delta_message,
-                            finish_reason=None,
-                        )
-                    ],
-                ))
+                chunks.append(
+                    ChatCompletionChunk(
+                        id=chunk_id,
+                        created=created,
+                        model=model,
+                        choices=[
+                            ChatCompletionDelta(
+                                index=0,
+                                delta=delta_message,
+                                finish_reason=None,
+                            )
+                        ],
+                    )
+                )
 
             # 检查 finishReason
             raw_reason = candidate.get("finishReason")
@@ -485,18 +609,20 @@ class GeminiAdapter(BaseAdapter):
                     "SAFETY": "content_filter",
                 }
                 delta_message = ChatMessage(role="assistant", content="")
-                chunks.append(ChatCompletionChunk(
-                    id=chunk_id,
-                    created=created,
-                    model=model,
-                    choices=[
-                        ChatCompletionDelta(
-                            index=0,
-                            delta=delta_message,
-                            finish_reason=reason_map.get(raw_reason, raw_reason),
-                        )
-                    ],
-                ))
+                chunks.append(
+                    ChatCompletionChunk(
+                        id=chunk_id,
+                        created=created,
+                        model=model,
+                        choices=[
+                            ChatCompletionDelta(
+                                index=0,
+                                delta=delta_message,
+                                finish_reason=reason_map.get(raw_reason, raw_reason),
+                            )
+                        ],
+                    )
+                )
 
         return chunks
 

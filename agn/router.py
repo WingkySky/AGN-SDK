@@ -4,16 +4,14 @@ AGN-SDK 路由器
 支持多 Provider 路由、负载均衡、Fallback、权重路由等高级功能。
 """
 
-import asyncio
 import logging
 import random
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from agn.adapters.factory import AdapterFactory
 from agn.core.errors import ModelNotFoundError
-from agn.core.utils import generate_id
 from agn.models.audio import SpeechResult, TranscriptionResult
-from agn.models.chat import ChatCompletion, ChatCompletionChunk, ChatMessage
+from agn.models.chat import ChatCompletion, ChatMessage
 from agn.models.common import ModelInfo, ProviderConfig
 from agn.models.image import ImageGenerationResult
 from agn.models.video import VideoStatus, VideoTask
@@ -479,7 +477,9 @@ class Router:
         if not candidates:
             for provider_type in self._provider_order:
                 adapter = self._adapters.get(provider_type)
-                if adapter and (capability is None or adapter.supports_capability(capability)):
+                if adapter and (
+                    capability is None or adapter.supports_capability(capability)
+                ):
                     candidates.append(provider_type)
 
         return candidates
@@ -525,7 +525,9 @@ class Router:
         elif self.strategy == "latency":
             # 按延迟排序，选延迟最低的
             # 如果没有延迟数据，fallback 到 first
-            with_latency = [p for p in candidates if self._provider_latency.get(p, 0) > 0]
+            with_latency = [
+                p for p in candidates if self._provider_latency.get(p, 0) > 0
+            ]
             if with_latency:
                 return min(with_latency, key=lambda p: self._provider_latency[p])
             return candidates[0]
@@ -555,7 +557,7 @@ class Router:
 
     async def _execute_with_fallback(
         self,
-        model: str,
+        model_name: str,
         capability: str,
         method_name: str,
         *args: Any,
@@ -565,7 +567,7 @@ class Router:
         带 Fallback 的执行方法
 
         Args:
-            model: 模型名称
+            model_name: 模型名称
             capability: 能力类型
             method_name: 要调用的方法名
             *args: 位置参数
@@ -574,7 +576,7 @@ class Router:
         Returns:
             方法执行结果
         """
-        primary = self._select_provider(model, capability)
+        primary = self._select_provider(model_name, capability)
         last_error: Exception | None = None
 
         # 主 Provider + fallback
@@ -600,7 +602,9 @@ class Router:
                 # 更新延迟统计（滑动平均）
                 old_latency = self._provider_latency.get(provider_type, 0)
                 if old_latency > 0:
-                    self._provider_latency[provider_type] = old_latency * 0.7 + elapsed * 0.3
+                    self._provider_latency[provider_type] = (
+                        old_latency * 0.7 + elapsed * 0.3
+                    )
                 else:
                     self._provider_latency[provider_type] = elapsed
 
@@ -663,8 +667,11 @@ class Router:
         Returns:
             对话完成结果
         """
-        return await self._execute_with_fallback(
-            model, "chat", "chat", model=model, messages=messages, **kwargs
+        return cast(
+            ChatCompletion,
+            await self._execute_with_fallback(
+                model, "chat", "chat", model=model, messages=messages, **kwargs
+            ),
         )
 
     async def chat_stream(
@@ -713,8 +720,11 @@ class Router:
         Returns:
             图像生成结果
         """
-        return await self._execute_with_fallback(
-            model, "image", "image_generate", model=model, prompt=prompt, **kwargs
+        return cast(
+            ImageGenerationResult,
+            await self._execute_with_fallback(
+                model, "image", "image_generate", model=model, prompt=prompt, **kwargs
+            ),
         )
 
     # ==================== 视频生成 ====================
@@ -736,8 +746,11 @@ class Router:
         Returns:
             视频任务信息
         """
-        return await self._execute_with_fallback(
-            model, "video", "video_create", model=model, prompt=prompt, **kwargs
+        return cast(
+            VideoTask,
+            await self._execute_with_fallback(
+                model, "video", "video_create", model=model, prompt=prompt, **kwargs
+            ),
         )
 
     async def video_poll(
@@ -760,21 +773,28 @@ class Router:
         # 优先使用指定的 Provider
         if provider_type:
             adapter = await self._get_adapter(provider_type)
-            return await adapter.video_poll(task_id=task_id, model=model)
+            return cast(
+                VideoStatus, await adapter.video_poll(task_id=task_id, model=model)
+            )
 
         # 根据模型名找到对应的 Provider
         if model:
             mapped = self.MODEL_PROVIDER_MAP.get(model)
             if mapped and mapped in self._adapters:
                 adapter = self._adapters[mapped]
-                return await adapter.video_poll(task_id=task_id, model=model)
+                return cast(
+                    VideoStatus, await adapter.video_poll(task_id=task_id, model=model)
+                )
 
         # 尝试所有支持 video 的 Provider
         for provider in self._get_capable_providers("video"):
             adapter = self._adapters.get(provider)
             if adapter:
                 try:
-                    return await adapter.video_poll(task_id=task_id, model=model)
+                    return cast(
+                        VideoStatus,
+                        await adapter.video_poll(task_id=task_id, model=model),
+                    )
                 except Exception:
                     continue
 
@@ -802,8 +822,16 @@ class Router:
         Returns:
             转写结果
         """
-        return await self._execute_with_fallback(
-            model, "audio_transcribe", "transcribe", model=model, file=file, **kwargs
+        return cast(
+            TranscriptionResult,
+            await self._execute_with_fallback(
+                model,
+                "audio_transcribe",
+                "transcribe",
+                model=model,
+                file=file,
+                **kwargs,
+            ),
         )
 
     async def translate(
@@ -823,8 +851,11 @@ class Router:
         Returns:
             翻译结果
         """
-        return await self._execute_with_fallback(
-            model, "audio_translate", "translate", model=model, file=file, **kwargs
+        return cast(
+            TranscriptionResult,
+            await self._execute_with_fallback(
+                model, "audio_translate", "translate", model=model, file=file, **kwargs
+            ),
         )
 
     # ==================== 文字转语音 ====================
@@ -848,8 +879,17 @@ class Router:
         Returns:
             语音合成结果
         """
-        return await self._execute_with_fallback(
-            model, "audio_speech", "speech", model=model, input=input, voice=voice, **kwargs
+        return cast(
+            SpeechResult,
+            await self._execute_with_fallback(
+                model,
+                "audio_speech",
+                "speech",
+                model=model,
+                input=input,
+                voice=voice,
+                **kwargs,
+            ),
         )
 
     # ==================== 模型信息 ====================

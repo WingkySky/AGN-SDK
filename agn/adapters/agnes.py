@@ -6,7 +6,8 @@ AGN-SDK Agnes AI 适配器
 
 import json
 import logging
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 
@@ -165,7 +166,9 @@ class AgnesAdapter(BaseAdapter):
         if stop := kwargs.get("stop"):
             body["stop"] = stop
 
-        logger.debug(f"Sending chat request to Agnes AI: model={model}, messages={len(messages)}")
+        logger.debug(
+            f"Sending chat request to Agnes AI: model={model}, messages={len(messages)}"
+        )
 
         try:
             response = await client.post(
@@ -259,10 +262,14 @@ class AgnesAdapter(BaseAdapter):
                     if response.status_code >= 400:
                         try:
                             error_data = await response.json()
-                            error_msg = error_data.get("error", {}).get("message", f"HTTP {response.status_code}")
+                            error_msg = error_data.get("error", {}).get(
+                                "message", f"HTTP {response.status_code}"
+                            )
                         except Exception:
                             error_msg = f"HTTP {response.status_code}"
-                        raise APIError(message=error_msg, status_code=response.status_code)
+                        raise APIError(
+                            message=error_msg, status_code=response.status_code
+                        )
 
                     async for line in response.aiter_lines():
                         line = line.strip()
@@ -305,11 +312,13 @@ class AgnesAdapter(BaseAdapter):
                         yield chunk
 
             except httpx.TimeoutException as e:
-                raise TimeoutError(message="Streaming request timeout", original_error=e)
+                raise TimeoutError(
+                    message="Streaming request timeout", original_error=e
+                ) from e
             except httpx.ConnectError as e:
-                raise NetworkError(message="Connection error", original_error=e)
+                raise NetworkError(message="Connection error", original_error=e) from e
             except httpx.HTTPError as e:
-                raise NetworkError(message=f"HTTP error: {e}", original_error=e)
+                raise NetworkError(message=f"HTTP error: {e}", original_error=e) from e
 
     def _merge_chunks(self, chunks: list[ChatCompletionChunk]) -> ChatCompletion:
         """
@@ -325,7 +334,6 @@ class AgnesAdapter(BaseAdapter):
             raise APIError(message="No chunks to merge")
 
         first_chunk = chunks[0]
-        last_chunk = chunks[-1]
 
         # 合并 content
         merged_content = ""
@@ -403,7 +411,9 @@ class AgnesAdapter(BaseAdapter):
                 extra_body["image"] = reference_images[0]
             body["extra_body"] = extra_body
 
-        logger.debug(f"Sending image generation request: model={model}, prompt_length={len(prompt)}")
+        logger.debug(
+            f"Sending image generation request: model={model}, prompt_length={len(prompt)}"
+        )
 
         try:
             response = await client.post(
@@ -415,7 +425,9 @@ class AgnesAdapter(BaseAdapter):
             raise
 
         data = response.json()
-        logger.debug(f"Received image response: id={data.get('id')}, count={len(data.get('data', []))}")
+        logger.debug(
+            f"Received image response: id={data.get('id')}, count={len(data.get('data', []))}"
+        )
 
         image_data_list: list[ImageData] = []
         for item in data.get("data", []):
@@ -595,7 +607,8 @@ class AgnesAdapter(BaseAdapter):
             return VideoStatus(
                 task_id=task_id,
                 status=data.get("status", "pending"),
-                video_url=data.get("video_url") or data.get("output", {}).get("video_url"),
+                video_url=data.get("video_url")
+                or data.get("output", {}).get("video_url"),
                 progress=data.get("progress"),
                 error=data.get("error"),
                 created_at=data.get("created"),
@@ -627,7 +640,13 @@ class AgnesAdapter(BaseAdapter):
                 name="Claude 3 Opus",
                 type="chat",
                 provider="agnes",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                ],
                 max_tokens=200000,
                 supports_streaming=True,
             ),
@@ -636,7 +655,13 @@ class AgnesAdapter(BaseAdapter):
                 name="Claude 3 Sonnet",
                 type="chat",
                 provider="agnes",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                ],
                 max_tokens=200000,
                 supports_streaming=True,
             ),
@@ -645,7 +670,14 @@ class AgnesAdapter(BaseAdapter):
                 name="GPT-4o",
                 type="chat",
                 provider="agnes",
-                capabilities=["chat", "vision", "tool_call", "function_call", "json_mode", "streaming"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "json_mode",
+                    "streaming",
+                ],
                 max_tokens=128000,
                 supports_streaming=True,
             ),

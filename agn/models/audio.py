@@ -2,10 +2,9 @@
 AGN-SDK 语音模型
 """
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 # ==================== 语音转文字 ====================
 
@@ -19,8 +18,12 @@ class TranscriptionWord(BaseModel):
     start: float = Field(..., description="开始时间（秒）")
     end: float = Field(..., description="结束时间（秒）")
     confidence: float | None = Field(None, description="置信度（0-1）")
-    speaker: int | str | None = Field(None, description="说话人标识（说话人分离时使用）")
-    punctuated_word: str | None = Field(None, description="带标点的词（部分服务商提供）")
+    speaker: int | str | None = Field(
+        None, description="说话人标识（说话人分离时使用）"
+    )
+    punctuated_word: str | None = Field(
+        None, description="带标点的词（部分服务商提供）"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -41,7 +44,9 @@ class TranscriptionSegment(BaseModel):
     tokens: list[int] | None = Field(None, description="Token ID 列表")
     seek: int | None = Field(None, description="Seek 偏移")
     confidence: float | None = Field(None, description="分段置信度（0-1）")
-    speaker: int | str | None = Field(None, description="说话人标识（说话人分离时使用）")
+    speaker: int | str | None = Field(
+        None, description="说话人标识（说话人分离时使用）"
+    )
     channel: int | None = Field(None, description="声道索引（多声道音频）")
 
     model_config = {"extra": "allow"}
@@ -57,7 +62,9 @@ class TranscriptionResult(BaseModel):
     duration: float | None = Field(None, description="音频时长（秒）")
     segments: list[TranscriptionSegment] | None = Field(None, description="分段信息")
     words: list[TranscriptionWord] | None = Field(None, description="词级时间戳")
-    task: str | None = Field("transcribe", description="任务类型（transcribe/translate）")
+    task: str | None = Field(
+        "transcribe", description="任务类型（transcribe/translate）"
+    )
     usage: dict[str, Any] | None = Field(None, description="使用统计")
     model: str | None = Field(None, description="使用的模型 ID")
 

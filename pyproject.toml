@@ -84,6 +84,7 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by black)
+    "ASYNC240",  # pathlib in async functions (acceptable for quick file reads)
 ]
 
 # black 配置
@@ -99,6 +100,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+plugins = ["pydantic.mypy"]
 
 # pytest 配置
 [tool.pytest.ini_options]
