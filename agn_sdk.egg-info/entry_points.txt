@@ -1,2 +1,0 @@
-[console_scripts]
-agn-sdk = agn.cli:main
