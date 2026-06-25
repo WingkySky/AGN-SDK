@@ -4,9 +4,10 @@ AGN-SDK 统一客户端
 提供统一的 API 接口，是用户使用 SDK 的唯一入口。
 """
 
-from typing import Any, AsyncGenerator, Literal
+from collections.abc import AsyncGenerator
+from typing import Any, Literal
 
-from agn.adapters.base import BaseAdapter, Capabilities
+from agn.adapters.base import BaseAdapter
 from agn.adapters.factory import AdapterFactory
 from agn.core.config import get_provider_config
 from agn.core.errors import ValidationError
@@ -16,8 +17,8 @@ from agn.models.common import ModelInfo, ProviderConfig
 from agn.models.image import ImageGenerationResult
 from agn.models.options import (
     ChatOptions,
-    EmbedOptions,
     EmbeddingResult,
+    EmbedOptions,
     ImageOptions,
     SpeechOptions,
     TranscribeOptions,
@@ -243,7 +244,9 @@ class Client:
         height: int = 720,
         num_frames: int | None = None,
         frame_rate: int = 24,
-        mode: Literal["text2video", "image2video", "keyframes", "multiimage"] = "text2video",
+        mode: Literal[
+            "text2video", "image2video", "keyframes", "multiimage"
+        ] = "text2video",
         reference_images: list[str] | None = None,
         negative_prompt: str | None = None,
         seed: int | None = None,

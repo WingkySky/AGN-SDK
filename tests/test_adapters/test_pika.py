@@ -1,11 +1,16 @@
 """
 AGN-SDK Pika 适配器测试
+
+测试 PikaAdapter 的各项功能，包括视频创建、视频轮询、错误处理等。
 """
 
 import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from agn.adapters.pika import PikaAdapter
+from agn.core.errors import UnsupportedCapabilityError
 from agn.models.common import ProviderConfig
+from agn.models.video import VideoStatus, VideoTask
 
 
 class TestPikaAdapter:
@@ -140,3 +145,220 @@ class TestPikaAdapterStatusMapping:
     def test_map_unknown_status(self, adapter: PikaAdapter) -> None:
         """测试未知状态映射"""
         assert adapter._map_pika_status("unknown_status") == "pending"
+
+
+class TestPikaAdapterVideoMockHTTP:
+    """PikaAdapter 视频生成 Mock HTTP 测试"""
+
+    @pytest.fixture
+    def adapter(self, mock_api_key: str) -> PikaAdapter:
+        """创建适配器实例"""
+        config = ProviderConfig(provider_type="pika", api_key=mock_api_key)
+        return PikaAdapter(config=config)
+
+    def _mock_response(self, data: dict, status_code: int = 200) -> MagicMock:
+        """创建模拟 HTTP 响应"""
+        mock_resp = MagicMock()
+        mock_resp.status_code = status_code
+        mock_resp.json = MagicMock(return_value=data)
+        mock_resp.headers = {}
+        return mock_resp
+
+    @pytest.mark.asyncio
+    async def test_video_create_basic(self, adapter: PikaAdapter) -> None:
+        """测试基础视频创建请求和响应解析"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-abc123",
+            "status": "pending",
+        }
+
+        with patch.object(
+            adapter._http_client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_create(
+                model="pika-1.0",
+                prompt="A cat running in the park",
+            )
+
+            assert isinstance(result, VideoTask)
+            assert result.task_id == "vid-abc123"
+            assert result.model == "pika-1.0"
+
+            # 验证请求 URL 和 body
+            call_args = mock_post.call_args
+            assert "/generations" in str(call_args)
+            body = call_args.kwargs.get("json") or call_args.args[0]
+            assert body["model"] == "pika-1.0"
+            assert body["prompt_text"] == "A cat running in the park"
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_create_with_params(self, adapter: PikaAdapter) -> None:
+        """测试带参数的短视频创建"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-xyz789",
+            "status": "pending",
+        }
+
+        with patch.object(
+            adapter._http_client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_create(
+                model="pika-2",
+                prompt="A beautiful sunset",
+                width=1920,
+                height=1080,
+                seed=42,
+                aspect_ratio="16:9",
+                duration=5,
+                negative_prompt="blurry",
+            )
+
+            assert isinstance(result, VideoTask)
+
+            # 验证请求参数
+            call_args = mock_post.call_args
+            body = call_args.kwargs.get("json") or call_args.args[0]
+            assert body["width"] == 1920
+            assert body["height"] == 1080
+            assert body["seed"] == 42
+            assert body["aspect_ratio"] == "16:9"
+            assert body["duration"] == 5
+            assert body["negative_prompt_text"] == "blurry"
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_create_image2video(self, adapter: PikaAdapter) -> None:
+        """测试图生视频模式"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-img2vid-001",
+            "status": "pending",
+        }
+
+        with patch.object(
+            adapter._http_client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_create(
+                model="pika-1.0",
+                prompt="Make this image dance",
+                mode="image2video",
+                reference_images=["https://example.com/input.jpg"],
+            )
+
+            assert isinstance(result, VideoTask)
+
+            # 验证请求 body
+            call_args = mock_post.call_args
+            body = call_args.kwargs.get("json") or call_args.args[0]
+            assert body["prompt_image"] == "https://example.com/input.jpg"
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_poll_pending(self, adapter: PikaAdapter) -> None:
+        """测试查询视频状态（pending）"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-abc123",
+            "status": "pending",
+            "created_at": 1700000000,
+        }
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_poll(task_id="vid-abc123")
+
+            assert isinstance(result, VideoStatus)
+            assert result.task_id == "vid-abc123"
+            assert result.status == "pending"
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_poll_processing(self, adapter: PikaAdapter) -> None:
+        """测试查询视频状态（processing）"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-abc123",
+            "status": "in_progress",
+            "progress": 50,
+        }
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_poll(task_id="vid-abc123")
+
+            assert result.status == "processing"
+            assert result.progress == 50
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_poll_success(self, adapter: PikaAdapter) -> None:
+        """测试查询视频状态（success）"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-abc123",
+            "status": "completed",
+            "video_url": "https://cdn.example.com/video.mp4",
+            "progress": 100,
+        }
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_poll(task_id="vid-abc123")
+
+            assert result.status == "success"
+            assert result.progress == 100
+            assert result.video_url == "https://cdn.example.com/video.mp4"
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_poll_failed(self, adapter: PikaAdapter) -> None:
+        """测试查询视频状态（failed）"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "vid-abc123",
+            "status": "failed",
+            "error": "Insufficient credits",
+        }
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = self._mock_response(mock_result)
+
+            result = await adapter.video_poll(task_id="vid-abc123")
+
+            assert result.status == "failed"
+            assert result.error == "Insufficient credits"
+
+        await adapter.close()

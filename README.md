@@ -35,9 +35,9 @@ Built with async-first design, full type safety, and a pluggable adapter archite
 | 💬 **Chat Completion** | Multi-turn conversations with AI models | ✅ Stable |
 | 🖼️ **Image Generation** | Text-to-image generation | ✅ Stable |
 | 🎬 **Video Creation** | Async video generation with polling | ✅ Stable |
-| 🔊 **Speech Synthesis** | Text-to-speech generation | 🚧 Coming Soon |
-| 🎤 **Speech Recognition** | Audio transcription | 🚧 Coming Soon |
-| 📊 **Embeddings** | Text embedding vectors | 🚧 Coming Soon |
+| 🔊 **Speech Synthesis** | Text-to-speech generation (Edge TTS / ElevenLabs / Cartesia) | ✅ Stable |
+| 🎤 **Speech Recognition** | Audio transcription (Deepgram / AssemblyAI) | ✅ Stable |
+| 📊 **Embeddings** | Text embedding vectors (OpenAI / Gemini / Agnes / aggregators) | ✅ Stable |
 
 ### Architecture Highlights
 
@@ -70,6 +70,20 @@ Built with async-first design, full type safety, and a pluggable adapter archite
 | Pika | — | — | ✅ |
 | Stability AI | — | ✅ | — |
 | ByteDance Seedance | ✅ | ✅ | ✅ |
+
+### Audio & Embedding Providers (Stable)
+
+| Provider | TTS | ASR | Embed | Notes |
+|----------|-----|-----|-------|-------|
+| **Edge TTS** | ✅ | — | — | Free, no API key, 100+ neural voices |
+| **ElevenLabs** | ✅ | — | — | High-quality multilingual voices |
+| **Cartesia** | ✅ | — | — | Ultra-low-latency Sonic TTS |
+| **Deepgram** | — | ✅ | — | Nova-2/Nova-3, fastest ASR |
+| **AssemblyAI** | — | ✅ | — | Enterprise ASR with diarization |
+| **OpenAI** | — | — | ✅ | text-embedding-3-small/large |
+| **Google Gemini** | — | — | ✅ | gemini-embedding-001 |
+| **Agnes AI** | — | — | ✅ | Unified embeddings |
+| **SiliconFlow / Together / Fireworks / Cloudflare** | — | — | ✅ | Aggregator-hosted embedding models |
 
 ---
 
@@ -260,6 +274,66 @@ while status.status == "in_progress":
     status = await client.video_poll(task.task_id)
     
 print(f"Video URL: {status.video_url}")
+```
+
+### Speech Synthesis (TTS)
+
+```python
+# Edge TTS — free, no API key required (install: pip install agn-sdk[edge-tts])
+edge_client = Client(provider="edge-tts", api_key="")
+result = await edge_client.speech(
+    model="edge-tts",
+    input="Hello, this is synthesized speech.",
+    voice="xiaoxiao",          # short name or full ID: zh-CN-XiaoxiaoNeural
+    response_format="mp3",     # mp3 / wav / ogg / pcm
+    rate="+10%",               # optional: speed adjustment
+)
+with open("out.mp3", "wb") as f:
+    f.write(result.audio_data)
+
+# OpenAI TTS — uses alloy/echo/nova voices
+result = await client.speech(
+    model="tts-1",
+    input="The quick brown fox jumps over the lazy dog.",
+    voice="alloy",
+    response_format="mp3",
+    speed=1.0,
+)
+```
+
+### Speech Recognition (ASR)
+
+```python
+# Deepgram Nova-2 (fastest) — accepts file path / URL / bytes / base64
+result = await client.transcribe(
+    model="nova-2",
+    file="./meeting.wav",
+    language="zh",             # optional: auto-detected if omitted
+    smart_format=True,         # optional: punctuation + number formatting
+)
+print(result.text)
+for seg in result.segments or []:
+    print(f"[{seg.start:.2f}-{seg.end:.2f}] {seg.text}")
+
+# AssemblyAI — enterprise ASR with speaker diarization
+result = await client.transcribe(
+    model="best",
+    file="./interview.mp3",
+    speaker_labels=True,
+    sentiment_analysis=True,
+)
+```
+
+### Text Embeddings
+
+```python
+# Single text or batch — returns unified EmbeddingResult
+result = await client.embed(
+    model="text-embedding-3-small",
+    input=["hello world", "machine learning"],
+)
+vectors = result.get_embeddings()   # list[list[float]]
+print(len(vectors), len(vectors[0]))
 ```
 
 ---

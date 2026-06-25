@@ -26,7 +26,7 @@ from agn.core.errors import (
 from agn.core.utils import current_timestamp, generate_id
 from agn.models.chat import ChatCompletion, ChatMessage
 from agn.models.common import ModelInfo, ProviderConfig
-from agn.models.image import ImageGenerationResult
+from agn.models.image import ImageData, ImageGenerationResult
 from agn.models.video import VideoStatus, VideoTask
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,9 @@ class StabilityAdapter(BaseAdapter):
     provider_name = "Stability AI"
     supported_capabilities = ["image"]
 
-    def __init__(self, config: ProviderConfig, default_engine: str | None = None) -> None:
+    def __init__(
+        self, config: ProviderConfig, default_engine: str | None = None
+    ) -> None:
         """
         初始化适配器
 
@@ -143,10 +145,12 @@ class StabilityAdapter(BaseAdapter):
 
         # 负面提示词
         if negative_prompt := kwargs.get("negative_prompt"):
-            body["text_prompts"].append({
-                "text": negative_prompt,
-                "weight": -1,
-            })
+            body["text_prompts"].append(
+                {
+                    "text": negative_prompt,
+                    "weight": -1,
+                }
+            )
 
         # 尺寸
         width = kwargs.get("width", 1024)
@@ -190,18 +194,17 @@ class StabilityAdapter(BaseAdapter):
         if not artifacts:
             raise APIError(message="No image generated")
 
-        images = []
+        images: list[ImageData] = []
         for artifact in artifacts:
             img_data = artifact.get("base64", "")
             if img_data:
-                images.append(f"data:image/png;base64,{img_data}")
+                images.append(ImageData(b64_json=img_data))
 
         return ImageGenerationResult(
-            images=images,
+            id=generate_id("img"),
+            created=current_timestamp(),
             model=engine,
-            created_at=data.get("finishReason") or current_timestamp(),
-            seed=data.get("seed"),
-            prompt=prompt,
+            data=images,
         )
 
     async def image_edit(
@@ -274,10 +277,12 @@ class StabilityAdapter(BaseAdapter):
         }
 
         if negative_prompt := kwargs.get("negative_prompt"):
-            data["text_prompts"].append({
-                "text": negative_prompt,
-                "weight": -1,
-            })
+            data["text_prompts"].append(
+                {
+                    "text": negative_prompt,
+                    "weight": -1,
+                }
+            )
 
         if width := kwargs.get("width"):
             data["width"] = width
@@ -312,18 +317,17 @@ class StabilityAdapter(BaseAdapter):
         if not artifacts:
             raise APIError(message="No image generated")
 
-        images = []
+        images: list[ImageData] = []
         for artifact in artifacts:
             img_base64 = artifact.get("base64", "")
             if img_base64:
-                images.append(f"data:image/png;base64,{img_base64}")
+                images.append(ImageData(b64_json=img_base64))
 
         return ImageGenerationResult(
-            images=images,
+            id=generate_id("img"),
+            created=current_timestamp(),
             model=engine,
-            created_at=current_timestamp(),
-            seed=result_data.get("seed"),
-            prompt=prompt,
+            data=images,
         )
 
     # ==================== 视频生成（不支持）====================
@@ -418,7 +422,9 @@ class StabilityAdapter(BaseAdapter):
         if response.status_code == 429:
             raise RateLimitError(message="Stability rate limit exceeded")
         if response.status_code == 403:
-            raise APIError(message="Engine not accessible or quota exceeded", status_code=403)
+            raise APIError(
+                message="Engine not accessible or quota exceeded", status_code=403
+            )
 
         try:
             error_data = response.json()

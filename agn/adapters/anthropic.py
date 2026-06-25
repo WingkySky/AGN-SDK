@@ -27,7 +27,13 @@ from agn.core.errors import (
     UnsupportedCapabilityError,
 )
 from agn.core.utils import current_timestamp, generate_id
-from agn.models.chat import ChatCompletion, ChatCompletionChunk, ChatCompletionDelta, ChatMessage
+from agn.models.chat import (
+    ChatChoice,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionDelta,
+    ChatMessage,
+)
 from agn.models.common import ModelInfo, ProviderConfig
 from agn.models.image import ImageGenerationResult
 from agn.models.options import ANTHROPIC_MAPPING
@@ -105,7 +111,9 @@ class AnthropicAdapter(BaseAdapter):
 
     # ==================== 消息格式转换 ====================
 
-    def _convert_messages(self, messages: list[ChatMessage] | list[dict]) -> tuple[list[dict], str | None]:
+    def _convert_messages(
+        self, messages: list[ChatMessage] | list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], str | None]:
         """
         将统一消息格式转换为 Anthropic 格式
 
@@ -120,7 +128,7 @@ class AnthropicAdapter(BaseAdapter):
         Returns:
             (anthropic_messages, system_prompt)
         """
-        anthropic_messages: list[dict] = []
+        anthropic_messages: list[dict[str, Any]] = []
         system_prompt: str | None = None
 
         for msg in messages:
@@ -146,14 +154,16 @@ class AnthropicAdapter(BaseAdapter):
                                     media_type, data = url.split(";", 1)
                                     media_type = media_type.replace("data:", "")
                                     encoding, data = data.split(",", 1)
-                                    blocks.append({
-                                        "type": "image",
-                                        "source": {
-                                            "type": "base64",
-                                            "media_type": media_type,
-                                            "data": data,
-                                        },
-                                    })
+                                    blocks.append(
+                                        {
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": media_type,
+                                                "data": data,
+                                            },
+                                        }
+                                    )
                             else:
                                 blocks.append(block)
                         else:
@@ -337,7 +347,14 @@ class AnthropicAdapter(BaseAdapter):
                 name="Claude 3 Opus",
                 type="chat",
                 provider="anthropic",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming", "thinking"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                    "thinking",
+                ],
                 description="Claude 3 Opus - 最强大的模型",
             ),
             ModelInfo(
@@ -345,7 +362,14 @@ class AnthropicAdapter(BaseAdapter):
                 name="Claude 3 Sonnet",
                 type="chat",
                 provider="anthropic",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming", "thinking"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                    "thinking",
+                ],
                 description="Claude 3 Sonnet - 平衡性能和速度",
             ),
             ModelInfo(
@@ -353,7 +377,13 @@ class AnthropicAdapter(BaseAdapter):
                 name="Claude 3 Haiku",
                 type="chat",
                 provider="anthropic",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                ],
                 description="Claude 3 Haiku - 最快的模型",
             ),
             ModelInfo(
@@ -361,7 +391,14 @@ class AnthropicAdapter(BaseAdapter):
                 name="Claude 3.5 Sonnet",
                 type="chat",
                 provider="anthropic",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming", "thinking"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                    "thinking",
+                ],
                 description="Claude 3.5 Sonnet - 最新高性能模型",
             ),
             ModelInfo(
@@ -369,7 +406,13 @@ class AnthropicAdapter(BaseAdapter):
                 name="Claude 3.5 Haiku",
                 type="chat",
                 provider="anthropic",
-                capabilities=["chat", "vision", "tool_call", "function_call", "streaming"],
+                capabilities=[
+                    "chat",
+                    "vision",
+                    "tool_call",
+                    "function_call",
+                    "streaming",
+                ],
                 description="Claude 3.5 Haiku - 最新快速模型",
             ),
         ]
@@ -381,7 +424,7 @@ class AnthropicAdapter(BaseAdapter):
 
     # ==================== 响应解析 ====================
 
-    def _parse_response(self, data: dict, model: str) -> ChatCompletion:
+    def _parse_response(self, data: dict[str, Any], model: str) -> ChatCompletion:
         """
         解析对话响应
 
@@ -399,24 +442,33 @@ class AnthropicAdapter(BaseAdapter):
                 content += block.get("text", "")
 
         # 提取 stop_reason
-        finish_reason = data.get("stop_reason")
-        stop_reason_map = {
+        finish_reason: str | None = data.get("stop_reason")
+        stop_reason_map: dict[str, str] = {
             "end_turn": "stop",
             "max_tokens": "length",
             "stop_sequence": "stop",
             "tool_use": "tool_calls",
         }
-        mapped_reason = stop_reason_map.get(finish_reason, finish_reason)
+        mapped_reason: str | None = (
+            stop_reason_map.get(finish_reason, finish_reason)
+            if finish_reason is not None
+            else None
+        )
 
         return ChatCompletion(
-            id=data.get("id", ""),
+            id=data.get("id", generate_id("chatcmpl")),
+            created=current_timestamp(),
             model=model,
-            content=content,
-            role="assistant",
-            finish_reason=mapped_reason,
+            choices=[
+                ChatChoice(
+                    index=0,
+                    message=ChatMessage(role="assistant", content=content),
+                    finish_reason=mapped_reason,
+                )
+            ],
             usage={
-                "input_tokens": data.get("usage", {}).get("input_tokens", 0),
-                "output_tokens": data.get("usage", {}).get("output_tokens", 0),
+                "prompt_tokens": data.get("usage", {}).get("input_tokens", 0),
+                "completion_tokens": data.get("usage", {}).get("output_tokens", 0),
                 "total_tokens": (
                     data.get("usage", {}).get("input_tokens", 0)
                     + data.get("usage", {}).get("output_tokens", 0)
@@ -424,7 +476,9 @@ class AnthropicAdapter(BaseAdapter):
             },
         )
 
-    def _parse_stream_chunk(self, data_str: str, model: str) -> list[ChatCompletionChunk]:
+    def _parse_stream_chunk(
+        self, data_str: str, model: str
+    ) -> list[ChatCompletionChunk]:
         """
         解析流式响应块
 
@@ -460,18 +514,20 @@ class AnthropicAdapter(BaseAdapter):
                 text = delta.get("text", "")
                 if text:
                     delta_message = ChatMessage(role="assistant", content=text)
-                    chunks.append(ChatCompletionChunk(
-                        id=chunk_id,
-                        created=created,
-                        model=model,
-                        choices=[
-                            ChatCompletionDelta(
-                                index=0,
-                                delta=delta_message,
-                                finish_reason=None,
-                            )
-                        ],
-                    ))
+                    chunks.append(
+                        ChatCompletionChunk(
+                            id=chunk_id,
+                            created=created,
+                            model=model,
+                            choices=[
+                                ChatCompletionDelta(
+                                    index=0,
+                                    delta=delta_message,
+                                    finish_reason=None,
+                                )
+                            ],
+                        )
+                    )
 
         elif event_type == "message_delta":
             delta = event.get("delta", {})
@@ -483,18 +539,22 @@ class AnthropicAdapter(BaseAdapter):
                     "stop_sequence": "stop",
                 }
                 delta_message = ChatMessage(role="assistant", content="")
-                chunks.append(ChatCompletionChunk(
-                    id=chunk_id,
-                    created=created,
-                    model=model,
-                    choices=[
-                        ChatCompletionDelta(
-                            index=0,
-                            delta=delta_message,
-                            finish_reason=stop_reason_map.get(stop_reason, stop_reason),
-                        )
-                    ],
-                ))
+                chunks.append(
+                    ChatCompletionChunk(
+                        id=chunk_id,
+                        created=created,
+                        model=model,
+                        choices=[
+                            ChatCompletionDelta(
+                                index=0,
+                                delta=delta_message,
+                                finish_reason=stop_reason_map.get(
+                                    stop_reason, stop_reason
+                                ),
+                            )
+                        ],
+                    )
+                )
 
         return chunks
 
@@ -524,7 +584,9 @@ class AnthropicAdapter(BaseAdapter):
             try:
                 error_data = response.json()
                 error_type = error_data.get("error", {}).get("type", "")
-                error_msg = error_data.get("error", {}).get("message", f"HTTP {response.status_code}")
+                error_msg = error_data.get("error", {}).get(
+                    "message", f"HTTP {response.status_code}"
+                )
                 if error_type in ("authentication_error", "invalid_request_error"):
                     if "api key" in error_msg.lower():
                         raise AuthenticationError(message=error_msg)

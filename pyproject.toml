@@ -1,3 +1,7 @@
+[build-system]
+requires = ["flit_core>=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
 [project]
 name = "agn-sdk"
 version = "1.0.0"
@@ -5,11 +9,11 @@ description = "多模型统一接口 SDK - 一套 API 调用所有 AI 模型"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your@email.com"}
+    {name = "WingkySky", email = "wingky@example.com"}
 ]
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -21,7 +25,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
-keywords = ["ai", "multimodal", "image-generation", "video-generation", "chat", "openai", "api"]
+keywords = ["ai", "multimodal", "image-generation", "video-generation", "chat", "openai", "tts", "asr", "embedding", "edge-tts"]
 
 # 核心依赖
 dependencies = [
@@ -48,15 +52,12 @@ dev = [
     "edge-tts>=6.1.0",
 ]
 
-# 项目入口
-[project.scripts]
-agn-sdk = "agn.cli:main"
-
 # 项目 URL
 [project.urls]
-Homepage = "https://github.com/your-org/agn-sdk"
-Repository = "https://github.com/your-org/agn-sdk"
-Documentation = "https://github.com/your-org/agn-sdk#readme"
+Homepage = "https://github.com/WingkySky/AGN-SDK"
+Repository = "https://github.com/WingkySky/AGN-SDK"
+Documentation = "https://github.com/WingkySky/AGN-SDK#readme"
+Issues = "https://github.com/WingkySky/AGN-SDK/issues"
 
 # flit 配置
 [tool.flit.module]
@@ -84,6 +85,7 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by black)
+    "ASYNC240",  # pathlib in async functions (acceptable for quick file reads)
 ]
 
 # black 配置
@@ -99,6 +101,7 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
+plugins = ["pydantic.mypy"]
 
 # pytest 配置
 [tool.pytest.ini_options]

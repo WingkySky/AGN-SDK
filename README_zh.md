@@ -35,9 +35,9 @@
 | 💬 **文本对话** | 与 AI 模型进行多轮对话 | ✅ 稳定 |
 | 🖼️ **图像生成** | 文生图功能 | ✅ 稳定 |
 | 🎬 **视频生成** | 异步视频生成，支持轮询 | ✅ 稳定 |
-| 🔊 **语音合成** | 文本转语音 | 🚧 计划中 |
-| 🎤 **语音识别** | 音频转录 | 🚧 计划中 |
-| 📊 **文本嵌入** | 文本向量嵌入 | 🚧 计划中 |
+| 🔊 **语音合成** | 文本转语音（Edge TTS / ElevenLabs / Cartesia） | ✅ 稳定 |
+| 🎤 **语音识别** | 音频转录（Deepgram / AssemblyAI） | ✅ 稳定 |
+| 📊 **文本嵌入** | 文本向量嵌入（OpenAI / Gemini / Agnes / 聚合平台） | ✅ 稳定 |
 
 ### 架构亮点
 
@@ -70,6 +70,20 @@
 | Pika | — | — | ✅ |
 | Stability AI | — | ✅ | — |
 | 字节 Seedance | ✅ | ✅ | ✅ |
+
+### 语音与嵌入服务商（稳定版）
+
+| 服务商 | TTS | ASR | 嵌入 | 说明 |
+| ------ | --- | --- | --- | --- |
+| **Edge TTS** | ✅ | — | — | 免费、无需 API Key、100+ 神经音色 |
+| **ElevenLabs** | ✅ | — | — | 高质量多语言音色 |
+| **Cartesia** | ✅ | — | — | 超低延迟 Sonic TTS |
+| **Deepgram** | — | ✅ | — | Nova-2/Nova-3，全球最快 ASR |
+| **AssemblyAI** | — | ✅ | — | 企业级 ASR，支持说话人分离 |
+| **OpenAI** | — | — | ✅ | text-embedding-3-small/large |
+| **Google Gemini** | — | — | ✅ | gemini-embedding-001 |
+| **Agnes AI** | — | — | ✅ | 统一嵌入接口 |
+| **SiliconFlow / Together / Fireworks / Cloudflare** | — | — | ✅ | 聚合平台托管的嵌入模型 |
 
 ---
 
@@ -260,6 +274,66 @@ while status.status == "in_progress":
     status = await client.video_poll(task.task_id)
     
 print(f"Video URL: {status.video_url}")
+```
+
+### 语音合成（TTS）
+
+```python
+# Edge TTS — 免费、无需 API Key（安装：pip install agn-sdk[edge-tts]）
+edge_client = Client(provider="edge-tts", api_key="")
+result = await edge_client.speech(
+    model="edge-tts",
+    input="你好，这是合成的语音。",
+    voice="xiaoxiao",          # 简称或完整 ID：zh-CN-XiaoxiaoNeural
+    response_format="mp3",     # mp3 / wav / ogg / pcm
+    rate="+10%",               # 可选：语速调整
+)
+with open("out.mp3", "wb") as f:
+    f.write(result.audio_data)
+
+# OpenAI TTS — 使用 alloy/echo/nova 音色
+result = await client.speech(
+    model="tts-1",
+    input="The quick brown fox jumps over the lazy dog.",
+    voice="alloy",
+    response_format="mp3",
+    speed=1.0,
+)
+```
+
+### 语音识别（ASR）
+
+```python
+# Deepgram Nova-2（最快）— 支持文件路径 / URL / bytes / base64
+result = await client.transcribe(
+    model="nova-2",
+    file="./meeting.wav",
+    language="zh",             # 可选：不传则自动检测
+    smart_format=True,         # 可选：标点和数字格式化
+)
+print(result.text)
+for seg in result.segments or []:
+    print(f"[{seg.start:.2f}-{seg.end:.2f}] {seg.text}")
+
+# AssemblyAI — 企业级 ASR，支持说话人分离
+result = await client.transcribe(
+    model="best",
+    file="./interview.mp3",
+    speaker_labels=True,
+    sentiment_analysis=True,
+)
+```
+
+### 文本嵌入
+
+```python
+# 支持单条或批量文本 — 返回统一的 EmbeddingResult
+result = await client.embed(
+    model="text-embedding-3-small",
+    input=["hello world", "machine learning"],
+)
+vectors = result.get_embeddings()   # list[list[float]]
+print(len(vectors), len(vectors[0]))
 ```
 
 ---

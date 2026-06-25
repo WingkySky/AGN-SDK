@@ -316,15 +316,19 @@ class VolcengineCVAdapter(BaseAdapter):
 
     # ==================== 响应解析 ====================
 
-    def _parse_image_response(self, data: dict, model: str) -> ImageGenerationResult:
+    def _parse_image_response(
+        self, data: dict[str, Any], model: str
+    ) -> ImageGenerationResult:
         """解析图像生成响应"""
         images: list[ImageData] = []
         for item in data.get("data", []):
-            images.append(ImageData(
-                url=item.get("url"),
-                b64_json=item.get("b64_json"),
-                revised_prompt=item.get("revised_prompt"),
-            ))
+            images.append(
+                ImageData(
+                    url=item.get("url"),
+                    b64_json=item.get("b64_json"),
+                    revised_prompt=item.get("revised_prompt"),
+                )
+            )
 
         return ImageGenerationResult(
             id=data.get("id", generate_id("img")),
@@ -333,7 +337,7 @@ class VolcengineCVAdapter(BaseAdapter):
             data=images,
         )
 
-    def _parse_video_status(self, data: dict, task_id: str) -> VideoStatus:
+    def _parse_video_status(self, data: dict[str, Any], task_id: str) -> VideoStatus:
         """解析视频任务状态响应"""
         raw_status = data.get("status", "")
         status = self._map_video_status(raw_status)
@@ -392,7 +396,9 @@ class VolcengineCVAdapter(BaseAdapter):
             return
 
         if response.status_code == 401:
-            raise AuthenticationError(message="Invalid Volcengine API key or access denied")
+            raise AuthenticationError(
+                message="Invalid Volcengine API key or access denied"
+            )
         if response.status_code == 429:
             raise RateLimitError(message="Volcengine rate limit exceeded")
         if response.status_code == 404:

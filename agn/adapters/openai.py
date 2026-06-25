@@ -6,8 +6,8 @@ AGN-SDK OpenAI 适配器
 
 import json
 import logging
-import os
-from typing import Any, AsyncGenerator, BinaryIO
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 
@@ -23,11 +23,7 @@ from agn.core.errors import (
 )
 from agn.core.utils import current_timestamp, generate_id
 from agn.models.audio import (
-    AudioResponseFormat,
-    SpeechResult,
     TranscriptionResult,
-    TranscriptionSegment,
-    TranscriptionWord,
 )
 from agn.models.chat import (
     ChatChoice,
@@ -82,7 +78,7 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
         super().__init__(config)
         self.base_url = config.base_url or DEFAULT_BASE_URL
         self.api_key = config.api_key
-        self._http_client: Any | None = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def start(self) -> None:
         """启动适配器"""
@@ -232,7 +228,9 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
             headers=headers,
         ) as client:
             try:
-                async with client.stream("POST", "/chat/completions", json=body) as response:
+                async with client.stream(
+                    "POST", "/chat/completions", json=body
+                ) as response:
                     self._handle_error(response)
 
                     async for line in response.aiter_lines():
@@ -276,9 +274,11 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
                         yield chunk
 
             except httpx.TimeoutException as e:
-                raise TimeoutError(message="Streaming request timeout", original_error=e)
+                raise TimeoutError(
+                    message="Streaming request timeout", original_error=e
+                ) from e
             except httpx.ConnectError as e:
-                raise NetworkError(message="Connection error", original_error=e)
+                raise NetworkError(message="Connection error", original_error=e) from e
 
     def _merge_chunks(self, chunks: list[ChatCompletionChunk]) -> ChatCompletion:
         """合并流式 chunk"""
@@ -298,7 +298,9 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
                     finish_reason = delta.finish_reason
 
         merged_message = ChatMessage(role="assistant", content=merged_content)
-        merged_choice = ChatChoice(index=0, message=merged_message, finish_reason=finish_reason)
+        merged_choice = ChatChoice(
+            index=0, message=merged_message, finish_reason=finish_reason
+        )
 
         return ChatCompletion(
             id=first_chunk.id,
@@ -619,7 +621,9 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
 
         files: Any
         if isinstance(audio_file, str):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout)) as http:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.config.timeout)
+            ) as http:
                 resp = await http.get(audio_file)
                 resp.raise_for_status()
                 files = {"file": (filename, resp.content, "application/octet-stream")}
@@ -667,7 +671,9 @@ class OpenAIAdapter(OpenAICompatibleAudioMixin, BaseAdapter):
 
         try:
             error_data = response.json()
-            error_msg = error_data.get("error", {}).get("message", f"HTTP {response.status_code}")
+            error_msg = error_data.get("error", {}).get(
+                "message", f"HTTP {response.status_code}"
+            )
         except Exception:
             error_msg = f"HTTP {response.status_code}"
 

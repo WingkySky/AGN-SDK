@@ -169,7 +169,9 @@ class KlingAdapter(BaseAdapter):
         if mode == "image2video" and reference_images:
             if reference_images:
                 body["image"] = reference_images[0]
-                params["mode"] = "std" if not kwargs.get("mode") else kwargs.get("mode", "std")
+                params["mode"] = (
+                    "std" if not kwargs.get("mode") else kwargs.get("mode", "std")
+                )
 
         if params:
             body.update(params)
@@ -198,11 +200,14 @@ class KlingAdapter(BaseAdapter):
 
         task_data = data.get("data", {})
         task_id = task_data.get("task_id") or data.get("task_id") or generate_id("vid")
+        raw_status = task_data.get("task_status", "pending")
+        # 使用状态映射确保返回标准状态值
+        status = self._map_kling_status(raw_status) if raw_status else "pending"
 
         return VideoTask(
             task_id=task_id,
             model=model,
-            status=task_data.get("task_status", "pending"),
+            status=status,
             created_at=current_timestamp(),
         )
 

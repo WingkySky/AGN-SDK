@@ -12,7 +12,6 @@ API 文档:
 """
 
 import logging
-import os
 from typing import Any
 
 import httpx
@@ -25,13 +24,13 @@ from agn.core.errors import (
     RateLimitError,
     UnsupportedCapabilityError,
 )
-from agn.core.utils import current_timestamp, generate_id
 from agn.models.audio import (
     SpeechResult,
     TranscriptionResult,
     TranscriptionSegment,
     TranscriptionWord,
 )
+from agn.models.chat import ChatMessage
 from agn.models.common import ModelInfo, ProviderConfig
 
 logger = logging.getLogger(__name__)
@@ -185,7 +184,9 @@ class ElevenLabsAdapter(BaseAdapter):
         client = self._get_client()
         voice_id = self._get_voice_id(voice)
 
-        response_format = kwargs.get("response_format") or kwargs.get("output_format", "mp3")
+        response_format = kwargs.get("response_format") or kwargs.get(
+            "output_format", "mp3"
+        )
 
         payload: dict[str, Any] = {
             "text": input,
@@ -250,7 +251,7 @@ class ElevenLabsAdapter(BaseAdapter):
     async def chat(
         self,
         model: str,
-        messages: list,
+        messages: list[ChatMessage],
         **kwargs: Any,
     ) -> Any:
         raise UnsupportedCapabilityError(
@@ -261,9 +262,11 @@ class ElevenLabsAdapter(BaseAdapter):
     async def chat_stream(
         self,
         model: str,
-        messages: list,
+        messages: list[ChatMessage],
         **kwargs: Any,
     ) -> Any:
+        if False:
+            yield
         raise UnsupportedCapabilityError(
             message="ElevenLabs does not support streaming chat",
             details={"provider": self.provider_type, "capability": "chat_stream"},
@@ -370,9 +373,13 @@ class ElevenLabsAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid ElevenLabs API key (xi-api-key)")
         if response.status_code == 429:
-            raise RateLimitError(message="ElevenLabs rate limit exceeded or quota exhausted")
+            raise RateLimitError(
+                message="ElevenLabs rate limit exceeded or quota exhausted"
+            )
         if response.status_code == 404:
-            raise APIError(message="ElevenLabs voice_id or model not found", status_code=404)
+            raise APIError(
+                message="ElevenLabs voice_id or model not found", status_code=404
+            )
         if response.status_code in (400, 422):
             try:
                 error_data = response.json()
@@ -380,7 +387,11 @@ class ElevenLabsAdapter(BaseAdapter):
                 if isinstance(error_detail, dict):
                     error_msg = error_detail.get("message", str(error_detail))
                 elif isinstance(error_detail, list):
-                    error_msg = "; ".join(str(e.get("msg", e)) for e in error_detail if isinstance(e, dict))
+                    error_msg = "; ".join(
+                        str(e.get("msg", e))
+                        for e in error_detail
+                        if isinstance(e, dict)
+                    )
                 else:
                     error_msg = str(error_detail)
             except Exception:
@@ -392,7 +403,9 @@ class ElevenLabsAdapter(BaseAdapter):
             error_msg = (
                 error_data.get("detail", {}).get("message")
                 if isinstance(error_data.get("detail"), dict)
-                else error_data.get("message", error_data.get("detail", f"HTTP {response.status_code}"))
+                else error_data.get(
+                    "message", error_data.get("detail", f"HTTP {response.status_code}")
+                )
             )
         except Exception:
             error_msg = f"HTTP {response.status_code}"
@@ -472,7 +485,9 @@ class DeepgramAdapter(BaseAdapter):
         if isinstance(file, (str, Path)):
             file_str = str(file)
             if file_str.startswith(("http://", "https://")):
-                async with httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout)) as http:
+                async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(self.config.timeout)
+                ) as http:
                     resp = await http.get(file_str)
                     resp.raise_for_status()
                     return resp.content, "audio/mpeg"
@@ -500,11 +515,24 @@ class DeepgramAdapter(BaseAdapter):
                 }
                 return path.read_bytes(), mime_map.get(ext, "audio/wav")
             # 判断是否像文件路径（包含路径分隔符或常见音频扩展名）
-            audio_exts = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".webm", ".mp4", ".aac", ".opus", ".pcm", ".ulaw"}
+            audio_exts = {
+                ".wav",
+                ".mp3",
+                ".ogg",
+                ".flac",
+                ".m4a",
+                ".webm",
+                ".mp4",
+                ".aac",
+                ".opus",
+                ".pcm",
+                ".ulaw",
+            }
             looks_like_path = (
-                "/" in file_str or "\\" in file_str or
-                path.suffix.lower() in audio_exts or
-                file_str.startswith(("~", "./", "../", "/"))
+                "/" in file_str
+                or "\\" in file_str
+                or path.suffix.lower() in audio_exts
+                or file_str.startswith(("~", "./", "../", "/"))
             )
             if looks_like_path:
                 raise FileNotFoundError(f"Audio file not found: {file_str}")
@@ -678,7 +706,7 @@ class DeepgramAdapter(BaseAdapter):
             if paragraphs and "paragraphs" in paragraphs:
                 for para in paragraphs["paragraphs"]:
                     sentences = para.get("sentences", [])
-                    for sent_idx, sent in enumerate(sentences):
+                    for _sent_idx, sent in enumerate(sentences):
                         seg = TranscriptionSegment(
                             id=len(all_segments),
                             start=sent.get("start", 0),
@@ -720,7 +748,7 @@ class DeepgramAdapter(BaseAdapter):
     async def chat(
         self,
         model: str,
-        messages: list,
+        messages: list[ChatMessage],
         **kwargs: Any,
     ) -> Any:
         raise UnsupportedCapabilityError(
@@ -731,9 +759,11 @@ class DeepgramAdapter(BaseAdapter):
     async def chat_stream(
         self,
         model: str,
-        messages: list,
+        messages: list[ChatMessage],
         **kwargs: Any,
     ) -> Any:
+        if False:
+            yield
         raise UnsupportedCapabilityError(
             message="Deepgram does not support streaming chat",
             details={"provider": self.provider_type, "capability": "chat_stream"},
@@ -912,14 +942,22 @@ class DeepgramAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid Deepgram API key (Token)")
         if response.status_code == 403:
-            raise AuthenticationError(message="Deepgram API key lacks permission or account suspended")
+            raise AuthenticationError(
+                message="Deepgram API key lacks permission or account suspended"
+            )
         if response.status_code == 429:
-            raise RateLimitError(message="Deepgram rate limit exceeded or quota exhausted")
+            raise RateLimitError(
+                message="Deepgram rate limit exceeded or quota exhausted"
+            )
         if response.status_code in (400, 422):
             try:
                 error_data = response.json()
                 if isinstance(error_data, dict):
-                    err_msg = error_data.get("err_msg") or error_data.get("message") or error_data.get("error", "")
+                    err_msg = (
+                        error_data.get("err_msg")
+                        or error_data.get("message")
+                        or error_data.get("error", "")
+                    )
                     if isinstance(err_msg, dict):
                         err_msg = err_msg.get("message", str(err_msg))
                     if not err_msg:
@@ -933,7 +971,11 @@ class DeepgramAdapter(BaseAdapter):
         try:
             error_data = response.json()
             if isinstance(error_data, dict):
-                err_msg = error_data.get("err_msg") or error_data.get("message") or error_data.get("error", f"HTTP {response.status_code}")
+                err_msg = (
+                    error_data.get("err_msg")
+                    or error_data.get("message")
+                    or error_data.get("error", f"HTTP {response.status_code}")
+                )
                 if isinstance(err_msg, dict):
                     err_msg = err_msg.get("message", str(err_msg))
             else:
@@ -1021,7 +1063,9 @@ class AssemblyAIAdapter(BaseAdapter):
         if isinstance(file, (str, Path)):
             file_str = str(file)
             if file_str.startswith(("http://", "https://")):
-                async with httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout)) as http:
+                async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(self.config.timeout)
+                ) as http:
                     resp = await http.get(file_str)
                     resp.raise_for_status()
                     return resp.content, "application/octet-stream"
@@ -1031,11 +1075,22 @@ class AssemblyAIAdapter(BaseAdapter):
             path = Path(file_str)
             if path.exists():
                 return path.read_bytes(), "application/octet-stream"
-            audio_exts = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".webm", ".mp4", ".aac", ".opus"}
+            audio_exts = {
+                ".wav",
+                ".mp3",
+                ".ogg",
+                ".flac",
+                ".m4a",
+                ".webm",
+                ".mp4",
+                ".aac",
+                ".opus",
+            }
             looks_like_path = (
-                "/" in file_str or "\\" in file_str or
-                path.suffix.lower() in audio_exts or
-                file_str.startswith(("~", "./", "../", "/"))
+                "/" in file_str
+                or "\\" in file_str
+                or path.suffix.lower() in audio_exts
+                or file_str.startswith(("~", "./", "../", "/"))
             )
             if looks_like_path:
                 raise FileNotFoundError(f"Audio file not found: {file_str}")
@@ -1072,7 +1127,7 @@ class AssemblyAIAdapter(BaseAdapter):
         )
         self._handle_error(response)
         result = response.json()
-        return result["upload_url"]
+        return str(result["upload_url"])
 
     async def transcribe(
         self,
@@ -1138,7 +1193,9 @@ class AssemblyAIAdapter(BaseAdapter):
         if kwargs.get("entity_detection"):
             transcript_request["entity_detection"] = True
         if kwargs.get("redact_pii"):
-            transcript_request["redact_pii_policies"] = kwargs.get("redact_pii_policies", [])
+            transcript_request["redact_pii_policies"] = kwargs.get(
+                "redact_pii_policies", []
+            )
             transcript_request["redact_pii"] = True
         if "word_boost" in kwargs and isinstance(kwargs["word_boost"], list):
             transcript_request["word_boost"] = kwargs["word_boost"]
@@ -1162,11 +1219,16 @@ class AssemblyAIAdapter(BaseAdapter):
                 break
             if status == "error":
                 error_msg = poll_data.get("error", "Transcription failed")
-                raise APIError(message=f"AssemblyAI transcription error: {error_msg}", status_code=500)
+                raise APIError(
+                    message=f"AssemblyAI transcription error: {error_msg}",
+                    status_code=500,
+                )
             await asyncio.sleep(polling_interval)
 
         if result_data is None:
-            raise APIError(message="AssemblyAI transcription timed out", status_code=408)
+            raise APIError(
+                message="AssemblyAI transcription timed out", status_code=408
+            )
 
         return self._parse_assemblyai_response(result_data, model=speech_model)
 
@@ -1194,26 +1256,38 @@ class AssemblyAIAdapter(BaseAdapter):
                     end=utt.get("end", 0) / 1000.0,
                     text=utt.get("text", ""),
                     confidence=utt.get("confidence"),
-                    speaker=str(utt.get("speaker")) if utt.get("speaker") is not None else None,
+                    speaker=(
+                        str(utt.get("speaker"))
+                        if utt.get("speaker") is not None
+                        else None
+                    ),
                 )
                 segments.append(seg)
                 for w in utt.get("words", []):
-                    words.append(TranscriptionWord(
+                    words.append(
+                        TranscriptionWord(
+                            word=w.get("text", ""),
+                            start=w.get("start", 0) / 1000.0,
+                            end=w.get("end", 0) / 1000.0,
+                            confidence=w.get("confidence"),
+                            speaker=(
+                                str(w.get("speaker"))
+                                if w.get("speaker") is not None
+                                else None
+                            ),
+                        )
+                    )
+        else:
+            api_words = result.get("words") or []
+            for w in api_words:
+                words.append(
+                    TranscriptionWord(
                         word=w.get("text", ""),
                         start=w.get("start", 0) / 1000.0,
                         end=w.get("end", 0) / 1000.0,
                         confidence=w.get("confidence"),
-                        speaker=str(w.get("speaker")) if w.get("speaker") is not None else None,
-                    ))
-        else:
-            api_words = result.get("words") or []
-            for w in api_words:
-                words.append(TranscriptionWord(
-                    word=w.get("text", ""),
-                    start=w.get("start", 0) / 1000.0,
-                    end=w.get("end", 0) / 1000.0,
-                    confidence=w.get("confidence"),
-                ))
+                    )
+                )
 
         return TranscriptionResult(
             text=full_text,
@@ -1238,13 +1312,17 @@ class AssemblyAIAdapter(BaseAdapter):
             details={"provider": self.provider_type, "capability": "audio_speech"},
         )
 
-    async def chat(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat(self, model: str, messages: list[ChatMessage], **kwargs: Any) -> Any:
         raise UnsupportedCapabilityError(
             message="AssemblyAI does not support chat completions",
             details={"provider": self.provider_type, "capability": "chat"},
         )
 
-    async def chat_stream(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat_stream(
+        self, model: str, messages: list[ChatMessage], **kwargs: Any
+    ) -> Any:
+        if False:
+            yield
         raise UnsupportedCapabilityError(
             message="AssemblyAI does not support streaming chat",
             details={"provider": self.provider_type, "capability": "chat_stream"},
@@ -1299,10 +1377,14 @@ class AssemblyAIAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid AssemblyAI API key")
         if response.status_code == 429:
-            raise RateLimitError(message="AssemblyAI rate limit exceeded or quota exhausted")
+            raise RateLimitError(
+                message="AssemblyAI rate limit exceeded or quota exhausted"
+            )
         try:
             error_data = response.json()
-            err_msg = error_data.get("error") or error_data.get("message", f"HTTP {response.status_code}")
+            err_msg = error_data.get("error") or error_data.get(
+                "message", f"HTTP {response.status_code}"
+            )
         except Exception:
             err_msg = f"HTTP {response.status_code}"
         raise APIError(message=str(err_msg), status_code=response.status_code)
@@ -1366,7 +1448,9 @@ class CartesiaAdapter(BaseAdapter):
         super().__init__(config)
         self.base_url = config.base_url or self.DEFAULT_BASE_URL
         self.api_key = config.api_key
-        self.api_version = getattr(config, "api_version", None) or self.DEFAULT_API_VERSION
+        self.api_version = (
+            getattr(config, "api_version", None) or self.DEFAULT_API_VERSION
+        )
         self._http_client: httpx.AsyncClient | None = None
 
     async def start(self) -> None:
@@ -1472,7 +1556,11 @@ class CartesiaAdapter(BaseAdapter):
             "raw": "audio/pcm",
             "flac": "audio/flac",
         }
-        container = output_format.get("container", "mp3") if isinstance(output_format, dict) else "mp3"
+        container = (
+            output_format.get("container", "mp3")
+            if isinstance(output_format, dict)
+            else "mp3"
+        )
         accept_type = accept_map.get(container, "audio/mpeg")
 
         response = await client.post(
@@ -1492,20 +1580,26 @@ class CartesiaAdapter(BaseAdapter):
             model=model,
         )
 
-    async def transcribe(self, model: str, file: Any, **kwargs: Any) -> TranscriptionResult:
+    async def transcribe(
+        self, model: str, file: Any, **kwargs: Any
+    ) -> TranscriptionResult:
         """Cartesia 专注 TTS，不提供 ASR"""
         raise UnsupportedCapabilityError(
             message="Cartesia does not support speech-to-text (transcription)",
             details={"provider": self.provider_type, "capability": "audio_transcribe"},
         )
 
-    async def chat(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat(self, model: str, messages: list[ChatMessage], **kwargs: Any) -> Any:
         raise UnsupportedCapabilityError(
             message="Cartesia does not support chat completions",
             details={"provider": self.provider_type, "capability": "chat"},
         )
 
-    async def chat_stream(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat_stream(
+        self, model: str, messages: list[ChatMessage], **kwargs: Any
+    ) -> Any:
+        if False:
+            yield
         raise UnsupportedCapabilityError(
             message="Cartesia does not support streaming chat",
             details={"provider": self.provider_type, "capability": "chat_stream"},
@@ -1576,13 +1670,21 @@ class CartesiaAdapter(BaseAdapter):
         if response.status_code == 401:
             raise AuthenticationError(message="Invalid Cartesia API key (X-API-Key)")
         if response.status_code == 429:
-            raise RateLimitError(message="Cartesia rate limit exceeded or quota exhausted")
+            raise RateLimitError(
+                message="Cartesia rate limit exceeded or quota exhausted"
+            )
         if response.status_code == 404:
-            raise APIError(message="Cartesia voice_id or model not found", status_code=404)
+            raise APIError(
+                message="Cartesia voice_id or model not found", status_code=404
+            )
         if response.status_code in (400, 422):
             try:
                 error_data = response.json()
-                err_msg = error_data.get("message") or error_data.get("error") or str(error_data)
+                err_msg = (
+                    error_data.get("message")
+                    or error_data.get("error")
+                    or str(error_data)
+                )
                 if isinstance(err_msg, dict):
                     err_msg = err_msg.get("message", str(err_msg))
             except Exception:
@@ -1590,11 +1692,12 @@ class CartesiaAdapter(BaseAdapter):
             raise APIError(message=str(err_msg), status_code=response.status_code)
         try:
             error_data = response.json()
-            err_msg = error_data.get("message") or error_data.get("error", f"HTTP {response.status_code}")
+            err_msg = error_data.get("message") or error_data.get(
+                "error", f"HTTP {response.status_code}"
+            )
         except Exception:
             err_msg = f"HTTP {response.status_code}"
         raise APIError(message=str(err_msg), status_code=response.status_code)
-
 
 
 # ==================== Edge TTS 免费神经语音合成适配器 ====================
@@ -1703,13 +1806,14 @@ class EdgeTTSAdapter(BaseAdapter):
 
     def __init__(self, config: ProviderConfig) -> None:
         super().__init__(config)
-        self._edge_tts_module = None
+        self._edge_tts_module: Any = None
 
-    def _get_edge_tts(self):
+    def _get_edge_tts(self) -> Any:
         """惰性导入 edge-tts 模块，未安装时给出清晰错误"""
         if self._edge_tts_module is None:
             try:
                 import edge_tts
+
                 self._edge_tts_module = edge_tts
             except ImportError:
                 raise ImportError(
@@ -1836,7 +1940,9 @@ class EdgeTTSAdapter(BaseAdapter):
             model=model if model else "edge-tts",
         )
 
-    async def transcribe(self, model: str, file: Any, **kwargs: Any) -> TranscriptionResult:
+    async def transcribe(
+        self, model: str, file: Any, **kwargs: Any
+    ) -> TranscriptionResult:
         """Edge TTS 仅提供 TTS，不支持 ASR"""
         raise UnsupportedCapabilityError(
             message="Edge TTS does not support speech-to-text (transcription)",
@@ -1854,18 +1960,22 @@ class EdgeTTSAdapter(BaseAdapter):
             语音列表，每项包含 Name、ShortName、Locale、Gender 等
         """
         edge_tts = self._get_edge_tts()
-        voices = await edge_tts.list_voices()
+        voices: list[dict[str, Any]] = await edge_tts.list_voices()
         if language:
             voices = [v for v in voices if v.get("Locale", "").startswith(language)]
         return voices
 
-    async def chat(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat(self, model: str, messages: list[ChatMessage], **kwargs: Any) -> Any:
         raise UnsupportedCapabilityError(
             message="Edge TTS does not support chat completions",
             details={"provider": self.provider_type, "capability": "chat"},
         )
 
-    async def chat_stream(self, model: str, messages: list, **kwargs: Any) -> Any:
+    async def chat_stream(
+        self, model: str, messages: list[ChatMessage], **kwargs: Any
+    ) -> Any:
+        if False:
+            yield
         raise UnsupportedCapabilityError(
             message="Edge TTS does not support streaming chat",
             details={"provider": self.provider_type, "capability": "chat_stream"},

@@ -4,7 +4,7 @@ AGN-SDK 适配器工厂
 根据 provider_type 创建对应的适配器实例。
 """
 
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agn.adapters.base import BaseAdapter
@@ -27,13 +27,13 @@ class AdapterFactory:
         adapter = AdapterFactory.create(config)
     """
 
-    _registry: dict[str, Type["BaseAdapter"]] = {}
+    _registry: dict[str, type["BaseAdapter"]] = {}
 
     @classmethod
     def register(
         cls,
         provider_type: str,
-        adapter_class: Type["BaseAdapter"],
+        adapter_class: type["BaseAdapter"],
     ) -> None:
         """
         注册适配器类
@@ -119,7 +119,7 @@ class AdapterFactory:
         }
 
     @classmethod
-    def get_adapter_class(cls, provider_type: str) -> Type["BaseAdapter"] | None:
+    def get_adapter_class(cls, provider_type: str) -> type["BaseAdapter"] | None:
         """
         获取适配器类
 

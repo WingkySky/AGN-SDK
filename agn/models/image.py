@@ -18,7 +18,9 @@ class ImageData(BaseModel):
 
     url: str | None = Field(None, description="图像 URL")
     b64_json: str | None = Field(None, description="Base64 编码的图像")
-    revised_prompt: str | None = Field(None, description="修改后的提示词（如模型优化过）")
+    revised_prompt: str | None = Field(
+        None, description="修改后的提示词（如模型优化过）"
+    )
 
     model_config = {"extra": "allow"}
 
@@ -89,7 +91,9 @@ class ImageGenerationOptions(BaseModel):
     size: str = Field("1024x1024", description="图像尺寸")
     n: int = Field(1, ge=1, le=10, description="生成数量")
     quality: Literal["standard", "hd"] = Field("standard", description="图像质量")
-    style: Literal["vivid", "natural"] | None = Field(None, description="图像风格（部分模型支持）")
+    style: Literal["vivid", "natural"] | None = Field(
+        None, description="图像风格（部分模型支持）"
+    )
     response_format: Literal["url", "b64_json"] = Field("url", description="响应格式")
 
     model_config = {"extra": "allow"}

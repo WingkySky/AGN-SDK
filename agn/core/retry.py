@@ -7,7 +7,8 @@ AGN-SDK 重试机制
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from tenacity import (
     retry,
@@ -74,7 +75,7 @@ def retry_on_error(
         ),
         reraise=True,
         before_sleep=lambda retry_state: logger.warning(
-            f"Retrying after error: {retry_state.outcome.exception()}, "
+            f"Retrying after error: {retry_state.outcome.exception() if retry_state.outcome else 'unknown'}, "
             f"attempt {retry_state.attempt_number}/{max_attempts}"
         ),
     )

@@ -45,50 +45,16 @@ AGN-SDK - 多模型统一接口 SDK
 __version__ = "1.0.0"
 
 # 核心类
-from agn.client import Client
-from agn.router import Router
+# 导入所有适配器（触发自动注册）
+import agn.adapters  # noqa: F401
 
-# 数据模型
-from agn.models.common import (
-    ImageSize,
-    ModelInfo,
-    ModelType,
-    ProviderConfig,
-    ProviderInfo,
-    TaskStatus,
-    VideoMode,
-)
-from agn.models.chat import (
-    ChatChoice,
-    ChatCompletion,
-    ChatCompletionChunk,
-    ChatCompletionDelta,
-    ChatCompletionRequest,
-    ChatFunction,
-    ChatMessage,
-    ChatUsage,
-)
-from agn.models.image import (
-    ImageData,
-    ImageEditRequest,
-    ImageGenerationOptions,
-    ImageGenerationResult,
-    ImageVariationRequest,
-)
-from agn.models.video import (
-    VideoGenerationOptions,
-    VideoStatus,
-    VideoTask,
-    VideoTaskCreate,
-)
-from agn.models.audio import (
-    AudioResponseFormat,
-    SpeechResult,
-    SpeechVoice,
-    TranscriptionResult,
-    TranscriptionSegment,
-    TranscriptionWord,
-)
+# 适配器
+from agn.adapters.base import BaseAdapter, Capabilities
+from agn.adapters.factory import AdapterFactory
+from agn.client import Client
+
+# 配置
+from agn.core.config import Config, load_env
 
 # 错误类型
 from agn.core.errors import (
@@ -103,26 +69,55 @@ from agn.core.errors import (
     UnsupportedCapabilityError,
     ValidationError,
 )
+from agn.models.audio import (
+    AudioResponseFormat,
+    SpeechResult,
+    SpeechVoice,
+    TranscriptionResult,
+    TranscriptionSegment,
+    TranscriptionWord,
+)
+from agn.models.chat import (
+    ChatChoice,
+    ChatCompletion,
+    ChatCompletionChunk,
+    ChatCompletionDelta,
+    ChatCompletionRequest,
+    ChatFunction,
+    ChatMessage,
+    ChatUsage,
+)
 
-# 配置
-from agn.core.config import Config, load_env
-
-# 适配器
-from agn.adapters.base import BaseAdapter, Capabilities
-from agn.adapters.factory import AdapterFactory
+# 数据模型
+from agn.models.common import (
+    ImageSize,
+    ModelInfo,
+    ModelType,
+    ProviderConfig,
+    ProviderInfo,
+    TaskStatus,
+    VideoMode,
+)
+from agn.models.image import (
+    ImageData,
+    ImageEditRequest,
+    ImageGenerationOptions,
+    ImageGenerationResult,
+    ImageVariationRequest,
+)
 from agn.models.options import (
     ANTHROPIC_MAPPING,
+    COHERE_MAPPING,
+    GEMINI_MAPPING,
+    OPENAI_COMPATIBLE_MAPPING,
     AspectRatio,
     ChatOptions,
-    COHERE_MAPPING,
-    EmbedOptions,
     EmbeddingResult,
+    EmbedOptions,
     FunctionDefinition,
     FunctionParameter,
-    GEMINI_MAPPING,
     ImageOptions,
     ImageStyle,
-    OPENAI_COMPATIBLE_MAPPING,
     ParameterMapping,
     ReasoningEffort,
     ResponseFormat,
@@ -134,9 +129,13 @@ from agn.models.options import (
     VideoDuration,
     VideoOptions,
 )
-
-# 导入所有适配器（触发自动注册）
-import agn.adapters
+from agn.models.video import (
+    VideoGenerationOptions,
+    VideoStatus,
+    VideoTask,
+    VideoTaskCreate,
+)
+from agn.router import Router
 
 __all__ = [
     # 版本

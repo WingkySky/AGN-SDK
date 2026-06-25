@@ -194,7 +194,12 @@ class RunwayAdapter(BaseAdapter):
         data = response.json()
 
         # 提取任务 ID
-        task_id = data.get("id") or data.get("assetId") or data.get("taskId") or generate_id("vid")
+        task_id = (
+            data.get("id")
+            or data.get("assetId")
+            or data.get("taskId")
+            or generate_id("vid")
+        )
 
         return VideoTask(
             task_id=task_id,
@@ -240,7 +245,8 @@ class RunwayAdapter(BaseAdapter):
             data.get("url")
             or data.get("videoUrl")
             or (data.get("output") or {}).get("url")
-            or (data.get("assets") or [{}])[0].get("url") if data.get("assets") else None
+            or (data.get("output") or {}).get("videoUrl")
+            or (((data.get("assets") or [{}])[0]).get("url") if data.get("assets") else None)
         )
 
         # 提取错误信息

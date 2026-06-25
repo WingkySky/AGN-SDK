@@ -95,6 +95,20 @@ class ChatCompletion(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class ChatCompletionDelta(BaseModel):
+    """
+    流式增量数据
+
+    表示流式输出时的单个增量内容。
+    """
+
+    index: int = Field(..., description="增量索引")
+    delta: ChatMessage = Field(..., description="增量消息内容")
+    finish_reason: str | None = Field(None, description="结束原因")
+
+    model_config = {"extra": "allow"}
+
+
 class ChatCompletionChunk(BaseModel):
     """
     流式对话块
@@ -107,20 +121,6 @@ class ChatCompletionChunk(BaseModel):
     created: int = Field(..., description="创建时间戳")
     model: str = Field(..., description="使用的模型")
     choices: list[ChatCompletionDelta] = Field(..., description="增量选项列表")
-
-    model_config = {"extra": "allow"}
-
-
-class ChatCompletionDelta(BaseModel):
-    """
-    流式增量数据
-
-    表示流式输出时的单个增量内容。
-    """
-
-    index: int = Field(..., description="增量索引")
-    delta: ChatMessage = Field(..., description="增量消息内容")
-    finish_reason: str | None = Field(None, description="结束原因")
 
     model_config = {"extra": "allow"}
 

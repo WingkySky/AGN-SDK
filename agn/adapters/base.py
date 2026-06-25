@@ -11,14 +11,15 @@ AGN-SDK 适配器基类
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, AsyncGenerator, ClassVar
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from agn.models.options import (
-    ChatOptions,
-    EmbedOptions,
-    EmbeddingResult,
-    ImageOptions,
     OPENAI_COMPATIBLE_MAPPING,
+    ChatOptions,
+    EmbeddingResult,
+    EmbedOptions,
+    ImageOptions,
     ParameterMapping,
     SpeechOptions,
     TranscribeOptions,
@@ -127,7 +128,15 @@ class BaseAdapter(ABC):
 
     def _merge_options(
         self,
-        options: ChatOptions | ImageOptions | VideoOptions | EmbedOptions | None,
+        options: (
+            ChatOptions
+            | ImageOptions
+            | VideoOptions
+            | EmbedOptions
+            | TranscribeOptions
+            | SpeechOptions
+            | None
+        ),
         kwargs: dict[str, Any],
     ) -> dict[str, Any]:
         """
@@ -196,20 +205,24 @@ class BaseAdapter(ABC):
                         content_blocks.append({"type": "text", "text": content})
 
                     for img_url in images:
-                        content_blocks.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": img_url,
-                                "detail": detail,
-                            },
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": img_url,
+                                    "detail": detail,
+                                },
+                            }
+                        )
 
                     result[i]["content"] = content_blocks
                     break
 
         return result
 
-    def _extract_system_prompt(self, messages: list["ChatMessage"]) -> tuple[list[dict[str, Any]], str | None]:
+    def _extract_system_prompt(
+        self, messages: list["ChatMessage"]
+    ) -> tuple[list[dict[str, Any]], str | None]:
         """
         从消息列表中提取 system prompt
 
@@ -319,6 +332,8 @@ class BaseAdapter(ABC):
         """
         from agn.core.errors import UnsupportedCapabilityError
 
+        if False:
+            yield  # 让函数成为异步生成器
         raise UnsupportedCapabilityError(
             message=f"Provider '{self.provider_type}' does not support streaming",
             details={"capability": "chat_stream", "provider": self.provider_type},
@@ -393,7 +408,9 @@ class BaseAdapter(ABC):
         """
         params = self._merge_options(options, kwargs)
         file = params.pop("file", None)
-        model = params.pop("model", None) or self.config.extra.get("transcribe_model", "whisper-1")
+        model = params.pop("model", None) or self.config.extra.get(
+            "transcribe_model", "whisper-1"
+        )
         return await self.transcribe(model=model, file=file, **params)
 
     async def transcribe(
@@ -443,7 +460,9 @@ class BaseAdapter(ABC):
         params = self._merge_options(options, kwargs)
         params["translate"] = True
         file = params.pop("file", None)
-        model = params.pop("model", None) or self.config.extra.get("transcribe_model", "whisper-1")
+        model = params.pop("model", None) or self.config.extra.get(
+            "transcribe_model", "whisper-1"
+        )
         return await self.translate(model=model, file=file, **params)
 
     async def translate(
@@ -492,7 +511,9 @@ class BaseAdapter(ABC):
         """
         params = self._merge_options(options, kwargs)
         input_text = params.pop("input", None)
-        model = params.pop("model", None) or self.config.extra.get("speech_model", "tts-1")
+        model = params.pop("model", None) or self.config.extra.get(
+            "speech_model", "tts-1"
+        )
         voice = params.pop("voice", None) or "alloy"
         return await self.speech(model=model, input=input_text, voice=voice, **params)
 
@@ -677,7 +698,9 @@ class BaseAdapter(ABC):
 
     # ==================== 错误处理 ====================
 
-    def _handle_http_error(self, response: Any, provider_name: str | None = None) -> None:
+    def _handle_http_error(
+        self, response: Any, provider_name: str | None = None
+    ) -> None:
         """
         统一 HTTP 错误处理
 
@@ -685,7 +708,6 @@ class BaseAdapter(ABC):
             response: httpx Response 对象
             provider_name: Provider 名称（可选）
         """
-        import httpx
 
         from agn.core.errors import APIError, AuthenticationError, RateLimitError
 

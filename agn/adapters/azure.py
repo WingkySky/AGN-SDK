@@ -5,16 +5,13 @@ AGN-SDK Azure OpenAI 适配器
 """
 
 import logging
-import os
 from typing import Any
 
 import httpx
 
 from agn.adapters.base import Capabilities
-from agn.adapters.openai import OpenAIAdapter
 from agn.adapters.factory import AdapterFactory
-from agn.core.errors import UnsupportedCapabilityError
-from agn.core.utils import current_timestamp, generate_id
+from agn.adapters.openai import OpenAIAdapter
 from agn.models.audio import SpeechResult, TranscriptionResult
 from agn.models.chat import ChatCompletion, ChatMessage
 from agn.models.common import ModelInfo, ProviderConfig
@@ -75,15 +72,15 @@ class AzureAdapter(OpenAIAdapter):
         if config.base_url:
             self.base_url = config.base_url
         elif self.resource_name and self.deployment_id:
-            self.base_url = (
-                f"https://{self.resource_name}.openai.azure.com/openai/deployments/{self.deployment_id}"
-            )
+            self.base_url = f"https://{self.resource_name}.openai.azure.com/openai/deployments/{self.deployment_id}"
         else:
             raise ValueError(
                 "Azure adapter requires either base_url or both resource_name and deployment_id"
             )
 
-        logger.debug(f"Azure adapter initialized: resource={self.resource_name}, deployment={self.deployment_id}")
+        logger.debug(
+            f"Azure adapter initialized: resource={self.resource_name}, deployment={self.deployment_id}"
+        )
 
     async def start(self) -> None:
         """启动适配器"""
@@ -161,7 +158,9 @@ class AzureAdapter(OpenAIAdapter):
         """
         if self.resource_name:
             return f"https://{self.resource_name}.openai.azure.com/openai"
-        return self.base_url.replace(f"/openai/deployments/{self.deployment_id}", "/openai")
+        return self.base_url.replace(
+            f"/openai/deployments/{self.deployment_id}", "/openai"
+        )
 
     async def transcribe(
         self,
@@ -191,7 +190,9 @@ class AzureAdapter(OpenAIAdapter):
 
         files: Any
         if isinstance(audio_file, str):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout)) as http:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.config.timeout)
+            ) as http:
                 resp = await http.get(audio_file)
                 resp.raise_for_status()
                 files = {"file": (filename, resp.content, "application/octet-stream")}
@@ -285,7 +286,9 @@ class AzureAdapter(OpenAIAdapter):
 
         files: Any
         if isinstance(audio_file, str):
-            async with httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout)) as http:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.config.timeout)
+            ) as http:
                 resp = await http.get(audio_file)
                 resp.raise_for_status()
                 files = {"file": (filename, resp.content, "application/octet-stream")}

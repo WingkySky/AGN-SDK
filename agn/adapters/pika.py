@@ -241,11 +241,14 @@ class PikaAdapter(BaseAdapter):
             data.get("video_url")
             or data.get("url")
             or (data.get("output") or {}).get("video_url")
-            or (data.get("results") or [{}])[0].get("url") if data.get("results") else None
+            or (data.get("output") or {}).get("url")
+            or (((data.get("results") or [{}])[0]).get("url") if data.get("results") else None)
         )
 
         # 提取错误信息
-        error = data.get("error") or data.get("error_message") or data.get("failure_reason")
+        error = (
+            data.get("error") or data.get("error_message") or data.get("failure_reason")
+        )
 
         return VideoStatus(
             task_id=task_id,

@@ -2439,17 +2439,23 @@ class TestCartesiaTTS:
     async def test_chat_image_video_unsupported(self):
         """测试非语音能力抛出不支持异常"""
         from agn.core.errors import UnsupportedCapabilityError
+
         await self.adapter.start()
         try:
+            # 测试普通异步方法
             for coro in [
                 self.adapter.chat("sonic-2", []),
-                self.adapter.chat_stream("sonic-2", []),
                 self.adapter.image_generate("sonic-2", "test"),
                 self.adapter.video_create("sonic-2", "test"),
                 self.adapter.video_poll("tid"),
             ]:
                 with pytest.raises(UnsupportedCapabilityError):
                     await coro
+
+            # 测试异步生成器方法（chat_stream）
+            with pytest.raises(UnsupportedCapabilityError):
+                async for _ in self.adapter.chat_stream("sonic-2", []):
+                    pass
         finally:
             await self.adapter.close()
 
@@ -2712,16 +2718,23 @@ class TestEdgeTTSAdapter:
     async def test_chat_image_video_unsupported(self):
         """测试非语音能力抛出不支持异常"""
         from agn.core.errors import UnsupportedCapabilityError
+
         self.adapter._edge_tts_module = MagicMock()
+
+        # 测试普通异步方法
         for coro in [
             self.adapter.chat("edge-tts", []),
-            self.adapter.chat_stream("edge-tts", []),
             self.adapter.image_generate("edge-tts", "test"),
             self.adapter.video_create("edge-tts", "test"),
             self.adapter.video_poll("tid"),
         ]:
             with pytest.raises(UnsupportedCapabilityError):
                 await coro
+
+        # 测试异步生成器方法（chat_stream）
+        with pytest.raises(UnsupportedCapabilityError):
+            async for _ in self.adapter.chat_stream("edge-tts", []):
+                pass
 
     def test_get_edge_tts_raises_import_error_when_missing(self):
         """测试未安装 edge-tts 时抛出 ImportError"""
