@@ -1,0 +1,75 @@
+"""
+AGN-SDK 客户端测试
+"""
+
+import pytest
+
+from agn import Client
+from agn.core.errors import ValidationError
+
+
+class TestClient:
+    """Client 类测试"""
+
+    def test_client_init_without_api_key(self) -> None:
+        """测试不提供 API Key 时抛出错误"""
+        with pytest.raises(ValidationError) as exc_info:
+            Client(provider="agnes", api_key="")
+
+        assert "API key is required" in str(exc_info.value)
+
+    def test_client_init_with_api_key(self, mock_api_key: str) -> None:
+        """测试提供 API Key 时正常初始化"""
+        client = Client(provider="agnes", api_key=mock_api_key)
+        assert client.provider_type == "agnes"
+        assert client.config.api_key == mock_api_key
+
+    def test_client_init_with_base_url(self, mock_api_key: str) -> None:
+        """测试自定义 Base URL"""
+        custom_url = "https://custom.api.com/v1"
+        client = Client(
+            provider="agnes",
+            api_key=mock_api_key,
+            base_url=custom_url,
+        )
+        assert client.config.base_url == custom_url
+
+    def test_client_init_with_timeout(self, mock_api_key: str) -> None:
+        """测试自定义超时时间"""
+        client = Client(
+            provider="agnes",
+            api_key=mock_api_key,
+            timeout=600,
+        )
+        assert client.config.timeout == 600
+
+    @pytest.mark.asyncio
+    async def test_client_context_manager(self, mock_api_key: str) -> None:
+        """测试异步上下文管理器"""
+        async with Client(provider="agnes", api_key=mock_api_key) as client:
+            assert client._adapter is not None
+
+
+class TestClientMessages:
+    """消息处理测试"""
+
+    def test_normalize_dict_messages(self, mock_api_key: str) -> None:
+        """测试字典消息转换为 ChatMessage"""
+        client = Client(provider="agnes", api_key=mock_api_key)
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi!"},
+        ]
+
+        normalized = client._normalize_messages(messages)
+        assert len(normalized) == 2
+        assert normalized[0].role == "user"
+        assert normalized[0].content == "Hello"
+        assert normalized[1].role == "assistant"
+        assert normalized[1].content == "Hi!"
+
+    def test_normalize_empty_messages(self, mock_api_key: str) -> None:
+        """测试空消息列表"""
+        client = Client(provider="agnes", api_key=mock_api_key)
+        normalized = client._normalize_messages([])
+        assert normalized == []
