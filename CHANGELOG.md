@@ -7,22 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-26
+
 ### Added
 
-- Initial project structure
-- Core architecture (Phase 1)
-- Data models (Phase 1)
-- Base adapter and factory (Phase 1)
-- Agnes AI adapter (Phase 2)
-- OpenAI adapter (Phase 3)
-- Azure OpenAI adapter (Phase 3)
+- 支持免费 Provider 免认证使用：`BaseAdapter` 新增 `requires_api_key` 类变量，免费 Provider（如 Edge TTS）设为 `False` 即可不传 API Key
+- 新增免费 Provider 场景测试（`test_client_init_free_provider_without_api_key` 等）
 
-### Planned
+### Changed
 
-- [ ] V0.2: Core layer (HTTP client, retry, errors)
-- [ ] V0.3: Client implementation
-- [ ] V1.0: Agnes AI adapter + tests
-- [ ] V1.1: OpenAI + Azure adapters
-- [ ] V1.2: Runway + Pika adapters (video generation)
-- [ ] V1.3: Stability AI + Chinese models
-- [ ] V1.4: Router + performance optimization
+- `ProviderConfig.api_key` 从 `str` 改为 `str | None`，免费 Provider 可不传
+- `Client` API Key 校验逻辑改为条件式：仅 `requires_api_key=True` 时检查
+- 所有适配器 `__init__` 的 `self.api_key = config.api_key` 改为 `or ""` 兜底为 `str`（36 处）
+
+### Fixed
+
+- 修复设计缺陷：原先所有 Provider 都被强制要求 `api_key`，导致 Edge TTS 等免费模型无法正常使用
+
+## [1.0.0] - 2026-06-25
+
+### Added
+
+- 多模型统一接口 SDK 首个正式版本
+- 统一 API：chat / image_generate / video_create / transcribe / speech / embed
+- 分层架构：API 层 / 路由器层 / 适配器层 / 核心层 / 数据模型层
+- 支持 Provider：Agnes / OpenAI / Azure / Gemini / Anthropic / Runway / Pika / Kling / Stability / 中文模型聚合平台 / Edge TTS / ElevenLabs / Cartesia / Deepgram / AssemblyAI / Volcengine 等
+- 生产级特性：异步优先、重试机制、错误映射、参数归一化、负载均衡、Fallback
+- 643 单元测试，mypy strict 0 错误
