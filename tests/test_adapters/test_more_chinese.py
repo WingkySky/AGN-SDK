@@ -248,29 +248,76 @@ class TestVolcengineCVAdapter:
 
     @pytest.mark.asyncio
     async def test_list_all_models(self, adapter: VolcengineCVAdapter) -> None:
-        """测试获取所有模型"""
-        models = await adapter.list_models()
-        assert len(models) >= 6
-        model_ids = {m.id for m in models}
-        assert "seedream-5.0" in model_ids
-        assert "seedream-4.0" in model_ids
-        assert "seedance-2.0" in model_ids
-        assert "seedance-2.0-mini" in model_ids
+        """测试获取所有模型（方舟规范 ID 格式）"""
+        await adapter.start()
+
+        mock_result = {
+            "data": [
+                {"id": "doubao-seedream-4-0-250828"},
+                {"id": "doubao-seedance-1-0-pro-250528"},
+            ]
+        }
+        mock_resp = MagicMock()
+        mock_resp.json = MagicMock(return_value=mock_result)
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = mock_resp
+            models = await adapter.list_models()
+            mock_get.assert_called_once_with(url="/models")
+            assert len(models) == 2
+            model_ids = {m.id for m in models}
+            assert "doubao-seedream-4-0-250828" in model_ids
+            assert "doubao-seedance-1-0-pro-250528" in model_ids
+
+        await adapter.close()
 
     @pytest.mark.asyncio
     async def test_list_image_models(self, adapter: VolcengineCVAdapter) -> None:
         """测试获取图像模型"""
-        models = await adapter.list_models(model_type="image")
-        assert len(models) >= 3
-        for model in models:
-            assert model.type == "image"
-            assert "text2image" in model.capabilities
+        await adapter.start()
+
+        mock_result = {
+            "data": [
+                {"id": "doubao-seedream-4-0-250828"},
+                {"id": "doubao-seedream-3-0-t2i-250415"},
+            ]
+        }
+        mock_resp = MagicMock()
+        mock_resp.json = MagicMock(return_value=mock_result)
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = mock_resp
+            models = await adapter.list_models(model_type="image")
+            assert len(models) == 2
+            for model in models:
+                assert model.type == "image"
+
+        await adapter.close()
 
     @pytest.mark.asyncio
     async def test_list_video_models(self, adapter: VolcengineCVAdapter) -> None:
         """测试获取视频模型"""
-        models = await adapter.list_models(model_type="video")
-        assert len(models) >= 3
-        for model in models:
-            assert model.type == "video"
-            assert "text2video" in model.capabilities
+        await adapter.start()
+
+        mock_result = {
+            "data": [
+                {"id": "doubao-seedance-1-0-pro-250528"},
+            ]
+        }
+        mock_resp = MagicMock()
+        mock_resp.json = MagicMock(return_value=mock_result)
+
+        with patch.object(
+            adapter._http_client, "get", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = mock_resp
+            models = await adapter.list_models(model_type="video")
+            assert len(models) == 1
+            for model in models:
+                assert model.type == "video"
+
+        await adapter.close()

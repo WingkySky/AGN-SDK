@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-06-27
+
+### Fixed
+
+- VolcengineCVAdapter 模型 ID 不符合方舟规范：`list_models` 原硬编码 `seedream-5.0` / `seedance-2.0` 等模型系列名（方舟 API 不识别），改为实时拉取 `GET /models`，返回 `doubao-seedream-4-0-250828` / `doubao-seedance-1-0-pro-250528` 等方舟规范格式 ID
+- VolcengineCVAdapter 视频创建端点错误：`POST /videos/generations` → `POST /contents/generations/tasks`（方舟 Video Generation API 官方端点），原端点无法调通
+- VolcengineCVAdapter 视频查询端点错误：`GET /videos/generations/{task_id}` → `GET /contents/generations/tasks/{task_id}`
+- VolcengineCVAdapter 视频创建请求体结构错误：`{"model","prompt"}` → `{"model","content":[{"type":"text","text":"提示词 --flag value"}]}`，对齐方舟 content 数组结构
+- VolcengineCVAdapter 视频参数传递方式：独立字段（duration/aspect_ratio/resolution/seed）转换为方舟 text flag（`--dur`/`--rt`/`--rs`/`--seed`/`--wm`/`--cf`），bool 值统一转小写
+- VolcengineCVAdapter `_parse_video_status` 增加 `content.video_url` 响应路径解析（方舟查询任务响应结构）
+
 ## [1.3.0] - 2026-06-27
 
 ### Fixed

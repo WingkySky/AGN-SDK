@@ -161,17 +161,21 @@ class VolcengineCVAdapter(BaseAdapter):
         """
         创建视频生成任务（Seedance）
 
+        对齐方舟 Video Generation API：POST /contents/generations/tasks
+        请求体为 {"model": ..., "content": [{"type":"text","text":"提示词 --flag value"}, ...]}
+
         Args:
-            model: 模型端点 ID
+            model: 模型 ID（方舟规范格式，如 doubao-seedance-1-0-pro-250528）
             prompt: 提示词
             **kwargs:
                 - mode: "text2video" (默认) 或 "image2video"
-                - reference_images: 参考图像 URL 列表 (image2video)
-                - negative_prompt: 负面提示词
-                - duration: 视频时长（秒）
-                - aspect_ratio: 宽高比，"16:9", "9:16", "1:1"
-                - resolution: 分辨率，"720p", "1080p"
-                - seed: 随机种子
+                - reference_images: 参考图像 URL 列表 (image2video 首帧)
+                - duration: 视频时长（秒），方舟 flag --dur
+                - aspect_ratio: 宽高比，"16:9"/"9:16"/"1:1" 等，方舟 flag --rt
+                - resolution: 分辨率，"720p"/"1080p"/"480p"/"4k"，方舟 flag --rs
+                - seed: 随机种子，方舟 flag --seed
+                - watermark: 是否加水印 (true/false)，方舟 flag --wm
+                - camerafixed: 镜头是否固定 (true/false)，方舟 flag --cf
 
         Returns:
             视频任务信息
@@ -181,27 +185,43 @@ class VolcengineCVAdapter(BaseAdapter):
         mode = kwargs.get("mode", "text2video")
         reference_images = kwargs.get("reference_images", [])
 
+        # 构造 text content：提示词 + 方舟 flag 参数
+        # 方舟 Seedance 参数通过 text 末尾的 --flag value 形式传递
+        # 参考：https://www.volcengine.com/docs/82379/1520757
+        text = prompt
+        flags: list[str] = []
+        if duration := kwargs.get("duration"):
+            flags.append(f"--dur {duration}")
+        if aspect_ratio := kwargs.get("aspect_ratio"):
+            flags.append(f"--rt {aspect_ratio}")
+        if resolution := kwargs.get("resolution"):
+            flags.append(f"--rs {resolution}")
+        if seed := kwargs.get("seed"):
+            flags.append(f"--seed {seed}")
+        if watermark := kwargs.get("watermark"):
+            flags.append(f"--wm {str(watermark).lower()}")
+        if camerafixed := kwargs.get("camerafixed"):
+            flags.append(f"--cf {str(camerafixed).lower()}")
+        if flags:
+            text = f"{text} {' '.join(flags)}"
+
+        # content 数组：文本必选，图片可选（图生视频时附加）
+        content: list[dict[str, Any]] = [{"type": "text", "text": text}]
+        if mode == "image2video" and reference_images:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": reference_images[0]},
+                }
+            )
+
         body: dict[str, Any] = {
             "model": model,
-            "prompt": prompt,
+            "content": content,
         }
 
-        if negative_prompt := kwargs.get("negative_prompt"):
-            body["negative_prompt"] = negative_prompt
-        if duration := kwargs.get("duration"):
-            body["duration"] = duration
-        if aspect_ratio := kwargs.get("aspect_ratio"):
-            body["aspect_ratio"] = aspect_ratio
-        if resolution := kwargs.get("resolution"):
-            body["resolution"] = resolution
-        if seed := kwargs.get("seed"):
-            body["seed"] = seed
-
-        if mode == "image2video" and reference_images:
-            body["image_url"] = reference_images[0] if reference_images else None
-
         try:
-            response = await client.post("/videos/generations", json=body)
+            response = await client.post("/contents/generations/tasks", json=body)
         except Exception as e:
             logger.error(f"Seedance video create failed: {e}")
             raise
@@ -227,8 +247,10 @@ class VolcengineCVAdapter(BaseAdapter):
         """
         查询视频生成任务状态
 
+        对齐方舟 Video Generation API：GET /contents/generations/tasks/{task_id}
+
         Args:
-            task_id: 任务 ID
+            task_id: 任务 ID（方舟格式 cgt-xxxx）
             model: 模型名称（可选，用于返回信息）
 
         Returns:
@@ -237,7 +259,7 @@ class VolcengineCVAdapter(BaseAdapter):
         client = self._get_client()
 
         try:
-            response = await client.get(f"/videos/generations/{task_id}")
+            response = await client.get(f"/contents/generations/tasks/{task_id}")
         except Exception as e:
             logger.error(f"Seedance video poll failed: {e}")
             raise
@@ -255,64 +277,23 @@ class VolcengineCVAdapter(BaseAdapter):
         """
         列出支持的模型
 
-        注意：火山方舟使用"接入点（Endpoint）"模式，模型 ID 为用户在控制台创建的接入点 ID。
-        此处返回模型系列名称供参考。
+        调用 GET /models 实时拉取用户在方舟控制台已开通的模型列表。
+        返回的模型 ID 为方舟规范格式（如 doubao-seedream-4-0-250828），
+        可直接用于 image_generate / video_create 的 model 参数。
+
+        方舟为 OpenAI 兼容 API，/models 端点返回用户已开通的预置模型。
+        若返回为空，需先在火山方舟控制台开通对应模型。
+
+        官方模型列表参考：
+        https://www.volcengine.com/docs/82379/1330310
         """
-        models = [
-            ModelInfo(
-                id="seedream-5.0",
-                name="Seedream 5.0",
-                type="image",
-                provider="volcengine_cv",
-                capabilities=["image", "text2image"],
-                description="豆包 Seedream 5.0 最新图像生成模型",
-            ),
-            ModelInfo(
-                id="seedream-4.0",
-                name="Seedream 4.0",
-                type="image",
-                provider="volcengine_cv",
-                capabilities=["image", "text2image"],
-                description="豆包 Seedream 4.0 图像生成模型",
-            ),
-            ModelInfo(
-                id="seedream-3.0",
-                name="Seedream 3.0",
-                type="image",
-                provider="volcengine_cv",
-                capabilities=["image", "text2image"],
-                description="豆包 Seedream 3.0 图像生成模型",
-            ),
-            ModelInfo(
-                id="seedance-2.0",
-                name="Seedance 2.0",
-                type="video",
-                provider="volcengine_cv",
-                capabilities=["video", "text2video", "image2video"],
-                description="豆包 Seedance 2.0 视频生成模型",
-            ),
-            ModelInfo(
-                id="seedance-2.0-mini",
-                name="Seedance 2.0 Mini",
-                type="video",
-                provider="volcengine_cv",
-                capabilities=["video", "text2video", "image2video"],
-                description="豆包 Seedance 2.0 Mini 快速版视频生成",
-            ),
-            ModelInfo(
-                id="seedance-1.0",
-                name="Seedance 1.0",
-                type="video",
-                provider="volcengine_cv",
-                capabilities=["video", "text2video"],
-                description="豆包 Seedance 1.0 视频生成模型",
-            ),
-        ]
-
-        if model_type:
-            models = [m for m in models if m.type == model_type]
-
-        return models
+        client = self._get_client()
+        response = await client.get(url="/models")
+        return self._parse_models_response(
+            data=response.json(),
+            provider="volcengine_cv",
+            model_type=model_type,
+        )
 
     # ==================== 响应解析 ====================
 
@@ -338,14 +319,23 @@ class VolcengineCVAdapter(BaseAdapter):
         )
 
     def _parse_video_status(self, data: dict[str, Any], task_id: str) -> VideoStatus:
-        """解析视频任务状态响应"""
+        """解析视频任务状态响应
+
+        方舟查询任务响应中视频 URL 在 content.video_url 字段，
+        同时兼容旧版 video_url / output.video_url / url 路径。
+        """
         raw_status = data.get("status", "")
         status = self._map_video_status(raw_status)
 
         video_url: str | None = None
         if status == "success":
+            # 方舟 content.video_url 优先，兼容其他路径
+            content = data.get("content") or {}
+            if isinstance(content, dict):
+                video_url = content.get("video_url")
             video_url = (
-                data.get("video_url")
+                video_url
+                or data.get("video_url")
                 or data.get("output", {}).get("video_url")
                 or data.get("url")
             )
