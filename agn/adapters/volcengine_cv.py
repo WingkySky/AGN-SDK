@@ -258,7 +258,9 @@ class VolcengineCVAdapter(BaseAdapter):
         创建视频生成任务（Seedance）
 
         对齐方舟 Video Generation API：POST /contents/generations/tasks
-        请求体为 {"model": ..., "content": [{"type":"text","text":"提示词 --flag value"}, ...]}
+        采用官方推荐的 body 直传方式（强校验），参数错误会明确报错。
+
+        官方文档：https://www.volcengine.com/docs/82379/1520757
 
         Args:
             model: 模型 ID（方舟规范格式，如 doubao-seedance-1-0-pro-250528）
@@ -266,12 +268,17 @@ class VolcengineCVAdapter(BaseAdapter):
             **kwargs:
                 - mode: "text2video" (默认) 或 "image2video"
                 - reference_images: 参考图像 URL 列表 (image2video 首帧)
-                - duration: 视频时长（秒），方舟 flag --dur
-                - aspect_ratio: 宽高比，"16:9"/"9:16"/"1:1" 等，方舟 flag --rt
-                - resolution: 分辨率，"720p"/"1080p"/"480p"/"4k"，方舟 flag --rs
-                - seed: 随机种子，方舟 flag --seed
-                - watermark: 是否加水印 (true/false)，方舟 flag --wm
-                - camerafixed: 镜头是否固定 (true/false)，方舟 flag --cf
+                - duration: 视频时长（秒），取值范围 [2, 15]
+                - aspect_ratio: 宽高比，枚举值 "16:9"/"4:3"/"1:1"/"3:4"/"9:16"/"21:9"/"adaptive"
+                - resolution: 分辨率，枚举值 "480p"/"720p"/"1080p"/"4k"
+                  （不同模型支持不同，如 4k 仅 Seedance 2.0 支持）
+                - seed: 随机种子
+                - watermark: 是否加水印 (bool)
+                - camerafixed: 镜头是否固定 (bool)
+                - generate_audio: 是否生成音频 (bool，仅 Seedance 2.0/1.5 Pro 支持)
+                - service_tier: 服务等级 "default"(在线) / "flex"(离线，更便宜)
+                - priority: 请求优先级 0-9 (仅 Seedance 2.0)
+                - draft: 是否开启样片模式 (bool，仅 Seedance 1.5 Pro)
 
         Returns:
             视频任务信息
@@ -281,28 +288,8 @@ class VolcengineCVAdapter(BaseAdapter):
         mode = kwargs.get("mode", "text2video")
         reference_images = kwargs.get("reference_images", [])
 
-        # 构造 text content：提示词 + 方舟 flag 参数
-        # 方舟 Seedance 参数通过 text 末尾的 --flag value 形式传递
-        # 参考：https://www.volcengine.com/docs/82379/1520757
-        text = prompt
-        flags: list[str] = []
-        if duration := kwargs.get("duration"):
-            flags.append(f"--dur {duration}")
-        if aspect_ratio := kwargs.get("aspect_ratio"):
-            flags.append(f"--rt {aspect_ratio}")
-        if resolution := kwargs.get("resolution"):
-            flags.append(f"--rs {resolution}")
-        if seed := kwargs.get("seed"):
-            flags.append(f"--seed {seed}")
-        if watermark := kwargs.get("watermark"):
-            flags.append(f"--wm {str(watermark).lower()}")
-        if camerafixed := kwargs.get("camerafixed"):
-            flags.append(f"--cf {str(camerafixed).lower()}")
-        if flags:
-            text = f"{text} {' '.join(flags)}"
-
         # content 数组：文本必选，图片可选（图生视频时附加）
-        content: list[dict[str, Any]] = [{"type": "text", "text": text}]
+        content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         if mode == "image2video" and reference_images:
             content.append(
                 {
@@ -311,10 +298,36 @@ class VolcengineCVAdapter(BaseAdapter):
                 }
             )
 
+        # 官方推荐：参数直接放 request body（强校验）
+        # 参考 https://www.volcengine.com/docs/82379/1520757 新方式
         body: dict[str, Any] = {
             "model": model,
             "content": content,
         }
+
+        # 视频格式参数（方舟 body 直传）
+        if duration := kwargs.get("duration"):
+            body["duration"] = duration
+        if aspect_ratio := kwargs.get("aspect_ratio"):
+            body["ratio"] = aspect_ratio
+        if resolution := kwargs.get("resolution"):
+            body["resolution"] = resolution
+        if (seed := kwargs.get("seed")) is not None:
+            body["seed"] = seed
+        if "watermark" in kwargs:
+            body["watermark"] = kwargs["watermark"]
+        if "camerafixed" in kwargs:
+            body["camera_fixed"] = kwargs["camerafixed"]
+
+        # 高级参数（仅部分模型支持）
+        if "generate_audio" in kwargs:
+            body["generate_audio"] = kwargs["generate_audio"]
+        if service_tier := kwargs.get("service_tier"):
+            body["service_tier"] = service_tier
+        if "priority" in kwargs:
+            body["priority"] = kwargs["priority"]
+        if "draft" in kwargs:
+            body["draft"] = kwargs["draft"]
 
         try:
             response = await client.post("/contents/generations/tasks", json=body)

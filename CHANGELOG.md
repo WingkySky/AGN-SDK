@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-06-27
+
+### Changed
+
+- VolcengineCVAdapter 视频创建参数传递方式改为官方推荐的 body 直传（强校验）
+  - 旧方式：参数拼入 text 末尾的 `--flag value`（弱校验，参数错误会被静默忽略）
+  - 新方式：参数直接放 request body（强校验，参数错误会明确报错）
+  - 参考官方文档 https://www.volcengine.com/docs/82379/1520757 新方式说明
+
+### Added
+
+- VolcengineCVAdapter 视频创建新增高级参数支持（kwargs）：
+  - `generate_audio`：是否生成音频（仅 Seedance 2.0/1.5 Pro 支持）
+  - `service_tier`：服务等级 "default"(在线) / "flex"(离线，更便宜)
+  - `priority`：请求优先级 0-9（仅 Seedance 2.0）
+  - `draft`：是否开启样片模式（仅 Seedance 1.5 Pro）
+- 参数名对齐方舟规范：`aspect_ratio` → body 的 `ratio` 字段，`camerafixed` → body 的 `camera_fixed` 字段
+
 ## [1.3.2] - 2026-06-27
 
 ### Fixed

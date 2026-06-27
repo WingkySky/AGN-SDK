@@ -410,7 +410,7 @@ class TestVolcengineCVAdapterVideoMockHTTP:
 
     @pytest.mark.asyncio
     async def test_video_create_with_params(self, adapter: VolcengineCVAdapter) -> None:
-        """测试带参数的视频创建（参数转为方舟 flag）"""
+        """测试带参数的视频创建（方舟 body 直传方式）"""
         await adapter.start()
 
         mock_result = {
@@ -431,19 +431,65 @@ class TestVolcengineCVAdapterVideoMockHTTP:
                 resolution="1080p",
                 seed=42,
                 watermark=True,
+                camerafixed=False,
             )
 
             assert isinstance(result, VideoTask)
 
-            # 验证请求：参数转换为方舟 flag 拼入 text
+            # 验证请求：参数直接放 body（方舟推荐新方式，强校验）
             call_args = mock_post.call_args
             body = call_args.kwargs.get("json") or call_args.args[0]
+            assert body["duration"] == 5
+            assert body["ratio"] == "16:9"
+            assert body["resolution"] == "1080p"
+            assert body["seed"] == 42
+            assert body["watermark"] is True
+            assert body["camera_fixed"] is False
+            # text 不应含 flag（参数已分离到 body）
             text = body["content"][0]["text"]
-            assert "--dur 5" in text
-            assert "--rt 16:9" in text
-            assert "--rs 1080p" in text
-            assert "--seed 42" in text
-            assert "--wm true" in text
+            assert "--dur" not in text
+            assert "--rt" not in text
+            assert "A beautiful sunset" in text
+
+        await adapter.close()
+
+    @pytest.mark.asyncio
+    async def test_video_create_advanced_params(
+        self, adapter: VolcengineCVAdapter
+    ) -> None:
+        """测试高级参数（generate_audio / service_tier / priority / draft）"""
+        await adapter.start()
+
+        mock_result = {
+            "id": "cgt-2025-advanced-001",
+            "status": "queued",
+        }
+
+        with patch.object(
+            adapter._http_client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = self._mock_response(mock_result)
+
+            await adapter.video_create(
+                model="doubao-seedance-2-0-250615",
+                prompt="A cinematic scene",
+                duration=10,
+                aspect_ratio="21:9",
+                resolution="4k",
+                generate_audio=True,
+                service_tier="flex",
+                priority=5,
+                draft=False,
+            )
+
+            call_args = mock_post.call_args
+            body = call_args.kwargs.get("json") or call_args.args[0]
+            assert body["generate_audio"] is True
+            assert body["service_tier"] == "flex"
+            assert body["priority"] == 5
+            assert body["draft"] is False
+            assert body["ratio"] == "21:9"
+            assert body["resolution"] == "4k"
 
         await adapter.close()
 
