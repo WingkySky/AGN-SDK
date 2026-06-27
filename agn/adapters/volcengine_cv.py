@@ -6,8 +6,9 @@ AGN-SDK 火山引擎方舟（Seedream/Seedance）适配器
 官方 API 文档：https://www.volcengine.com/docs/82379
 - Base URL: https://ark.cn-beijing.volces.com/api/v3
 - 图像生成 (Seedream): POST /images/generations (同步)
-- 视频生成 (Seedance): POST /videos/generations (异步任务)
-- 查询视频任务: GET /videos/generations/{task_id}
+- 视频生成 (Seedance): POST /contents/generations/tasks (异步任务)
+- 查询视频任务: GET /contents/generations/tasks/{task_id}
+- 模型列表: GET /models (OpenAI 兼容，返回已开通模型)
 - 认证: Bearer Token (火山引擎 API Key)
 """
 
@@ -31,6 +32,31 @@ from agn.models.image import ImageData, ImageGenerationResult
 from agn.models.video import VideoStatus, VideoTask
 
 logger = logging.getLogger(__name__)
+
+# 方舟 Seedream 图像 size 规范（官方文档 https://www.volcengine.com/docs/82379/1541523）
+# 方式 1（枚举）：2K / 3K / 4K
+# 方式 2（像素值 WIDTHxHEIGHT）：需同时满足总像素和宽高比两项约束
+_VOLCENGINE_MIN_PIXELS = 3686400  # 2560x1440
+_VOLCENGINE_MAX_PIXELS = 16777216  # 4096x4096
+_VOLCENGINE_MIN_RATIO = 1 / 16
+_VOLCENGINE_MAX_RATIO = 16
+
+# 方式 1 的合法枚举值（大写匹配）
+_VOLCENGINE_SIZE_ENUMS = {"2K", "3K", "4K"}
+
+# 2K 推荐宽高像素值（官方推荐表，最小合法档），按宽高比升序排列
+# 格式：(宽高比 ratio, 宽, 高)
+# 参考 https://www.volcengine.com/docs/82379/1541523 推荐的宽高像素值表
+_VOLCENGINE_2K_PRESETS: list[tuple[float, int, int]] = [
+    (9 / 16, 1600, 2848),  # 9:16
+    (2 / 3, 1664, 2496),  # 2:3
+    (3 / 4, 1728, 2304),  # 3:4
+    (1.0, 2048, 2048),  # 1:1
+    (4 / 3, 2304, 1728),  # 4:3
+    (3 / 2, 2496, 1664),  # 3:2
+    (16 / 9, 2848, 1600),  # 16:9
+    (21 / 9, 3136, 1344),  # 21:9
+]
 
 
 class VolcengineCVAdapter(BaseAdapter):
@@ -99,6 +125,70 @@ class VolcengineCVAdapter(BaseAdapter):
 
     # ==================== 图像生成 (Seedream) ====================
 
+    @staticmethod
+    def _normalize_image_size(size: str) -> str:
+        """
+        归一化图像 size 到方舟 Seedream 规范
+
+        方舟 Seedream size 规范（官方文档 https://www.volcengine.com/docs/82379/1541523）：
+        - 方式 1（枚举）："2K" / "3K" / "4K"
+        - 方式 2（像素值 WIDTHxHEIGHT）：需同时满足
+          * 总像素 ∈ [3686400, 16777216]
+          * 宽高比 ∈ [1/16, 16]
+
+        本方法将不合法的尺寸（如 OpenAI 风格的 1024x1024 小尺寸）按
+        最接近的宽高比映射到 2K 推荐尺寸（最小合法档），保证请求可被方舟接受。
+        已合法的尺寸原样透传，不修改用户意图。
+
+        Args:
+            size: 用户传入的 size 字符串（如 "1024x1024"、"2K"、"2560x1440"）
+
+        Returns:
+            方舟规范格式的 size 字符串（如 "2048x2048"、"2K"）
+        """
+        if not size or not isinstance(size, str):
+            return "2048x2048"
+
+        s = size.strip().upper()
+
+        # 方式 1：枚举值原样透传
+        if s in _VOLCENGINE_SIZE_ENUMS:
+            return size
+
+        # 方式 2：解析 WIDTHxHEIGHT（兼容 x / X / * 分隔符）
+        parts = s.replace("X", "x").replace("*", "x").split("x")
+        if len(parts) != 2:
+            return "2048x2048"
+
+        try:
+            w, h = int(parts[0]), int(parts[1])
+        except ValueError:
+            return "2048x2048"
+
+        if w <= 0 or h <= 0:
+            return "2048x2048"
+
+        total = w * h
+        ratio = w / h
+
+        # 已合法：原样透传
+        if (
+            _VOLCENGINE_MIN_PIXELS <= total <= _VOLCENGINE_MAX_PIXELS
+            and _VOLCENGINE_MIN_RATIO <= ratio <= _VOLCENGINE_MAX_RATIO
+        ):
+            return f"{w}x{h}"
+
+        # 不合法：按最接近的宽高比映射到 2K 推荐尺寸
+        best = _VOLCENGINE_2K_PRESETS[0]
+        best_diff = abs(ratio - best[0])
+        for rec_ratio, rec_w, rec_h in _VOLCENGINE_2K_PRESETS[1:]:
+            diff = abs(ratio - rec_ratio)
+            if diff < best_diff:
+                best = (rec_ratio, rec_w, rec_h)
+                best_diff = diff
+
+        return f"{best[1]}x{best[2]}"
+
     async def image_generate(
         self,
         model: str,
@@ -109,10 +199,12 @@ class VolcengineCVAdapter(BaseAdapter):
         生成图像（Seedream 文生图）
 
         Args:
-            model: 模型端点 ID (用户在火山方舟创建的接入点 ID)
+            model: 方舟 Model ID（如 doubao-seedream-4-0-250828），需先在方舟控制台开通
             prompt: 提示词
             **kwargs:
                 - size: 图像尺寸，默认 "1024x1024"
+                  支持方舟枚举值 "2K"/"3K"/"4K" 或像素值 "WIDTHxHEIGHT"
+                  小尺寸会自动归一化到方舟规范的最小合法档（2K 推荐）
                 - n: 生成数量，默认 1
                 - response_format: "url" 或 "b64_json"
                 - negative_prompt: 负面提示词
@@ -123,7 +215,11 @@ class VolcengineCVAdapter(BaseAdapter):
         """
         client = self._get_client()
 
-        size = kwargs.get("size", "1024x1024")
+        # 方舟 Seedream 对 size 有平台特定规范（最小 3686400 像素），
+        # 小尺寸（如 1024x1024）会触发 503，需归一化到合法档
+        raw_size = kwargs.get("size", "1024x1024")
+        size = self._normalize_image_size(raw_size)
+
         n = kwargs.get("n", 1)
         response_format = kwargs.get("response_format", "url")
 

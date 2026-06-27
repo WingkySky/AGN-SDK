@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-06-27
+
+### Fixed
+
+- VolcengineCVAdapter 图像生成 size 参数不符合方舟规范：方舟 Seedream 要求总像素 ∈ [3686400, 16777216]、宽高比 ∈ [1/16, 16]，OpenAI 风格的小尺寸（如 `1024x1024` / `1280x720`）会触发方舟 503 错误。新增 `_normalize_image_size()` 静态方法，将不合法尺寸按最接近宽高比映射到 2K 推荐档（官方推荐尺寸表），已合法尺寸和枚举值（`2K`/`3K`/`4K`）原样透传
+
+### Changed
+
+- 同步更新模块 docstring：视频端点 `/videos/generations` → `/contents/generations/tasks`（1.3.1 改动遗漏的文档同步）
+
 ## [1.3.1] - 2026-06-27
 
 ### Fixed

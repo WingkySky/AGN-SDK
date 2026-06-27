@@ -298,13 +298,60 @@ class TestVolcengineCVAdapterImageMockHTTP:
             # 验证请求参数
             call_args = mock_post.call_args
             body = call_args.kwargs.get("json") or call_args.args[0]
-            assert body["size"] == "1024x1024"
+            # 1024x1024 会被归一化为方舟规范的 2K 推荐 1:1 尺寸 2048x2048
+            assert body["size"] == "2048x2048"
             assert body["n"] == 2
             assert body["response_format"] == "b64_json"
             assert body["negative_prompt"] == "blurry"
             assert body["seed"] == 42
 
         await adapter.close()
+
+
+class TestVolcengineCVAdapterSizeNormalization:
+    """VolcengineCVAdapter size 归一化测试
+
+    方舟 Seedream size 规范（官方文档 https://www.volcengine.com/docs/82379/1541523）：
+    - 枚举值 2K/3K/4K 原样透传
+    - 像素值 WIDTHxHEIGHT：总像素 ∈ [3686400, 16777216]、宽高比 ∈ [1/16, 16]
+    - 不合法的小尺寸按最接近宽高比映射到 2K 推荐尺寸
+    """
+
+    @pytest.mark.parametrize(
+        "raw, expected, reason",
+        [
+            # 枚举值原样透传
+            ("2K", "2K", "枚举值 2K 原样透传"),
+            ("3K", "3K", "枚举值 3K 原样透传"),
+            ("4K", "4K", "枚举值 4K 原样透传"),
+            ("2k", "2k", "枚举值小写也透传（原样返回）"),
+            # 已合法的像素值原样透传
+            ("2048x2048", "2048x2048", "2K 1:1 已合法"),
+            ("2560x1440", "2560x1440", "16:9 边界值 3686400 已合法"),
+            ("4096x4096", "4096x4096", "4K 上限值已合法"),
+            ("2848x1600", "2848x1600", "官方 16:9 2K 推荐值已合法"),
+            # 不合法的小尺寸按宽高比映射到 2K 推荐
+            ("1024x1024", "2048x2048", "1:1 小尺寸 → 2K 1:1 推荐"),
+            ("1280x720", "2848x1600", "16:9 小尺寸 → 2K 16:9 推荐"),
+            ("720x1280", "1600x2848", "9:16 小尺寸 → 2K 9:16 推荐"),
+            ("1024x768", "2304x1728", "4:3 小尺寸 → 2K 4:3 推荐"),
+            ("768x1024", "1728x2304", "3:4 小尺寸 → 2K 3:4 推荐"),
+            # 格式异常回退默认
+            ("invalid", "2048x2048", "非法格式回退默认"),
+            ("", "2048x2048", "空字符串回退默认"),
+            ("0x0", "2048x2048", "0 值回退默认"),
+        ],
+    )
+    def test_normalize_image_size(self, raw: str, expected: str, reason: str) -> None:
+        """测试 size 归一化的各种场景"""
+        actual = VolcengineCVAdapter._normalize_image_size(raw)
+        assert (
+            actual == expected
+        ), f"{reason}: 输入 {raw!r} 期望 {expected!r} 实际 {actual!r}"
+
+    def test_normalize_image_size_none(self) -> None:
+        """None 输入回退默认"""
+        assert VolcengineCVAdapter._normalize_image_size(None) == "2048x2048"  # type: ignore[arg-type]
 
 
 class TestVolcengineCVAdapterVideoMockHTTP:
